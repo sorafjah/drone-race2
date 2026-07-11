@@ -31,10 +31,21 @@
     background:rgba(8,14,40,.72); color:#eaf7ff; font-size:22px; pointer-events:auto; }
 
   #combo-pop { position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(1);
-    font-size:34px; font-weight:800; color:#ffe45c; text-shadow:0 0 14px rgba(255,180,0,.8),0 2px 0 #7a4b00;
-    opacity:0; transition:opacity .18s, transform .18s; text-align:center; }
-  #combo-pop.show { opacity:1; transform:translate(-50%,-50%) scale(1.16); }
-  #combo-pop .sub { font-size:16px; color:#fff; text-shadow:0 0 8px rgba(0,180,255,.9); }
+    font-size:40px; font-weight:800; color:#ffe45c; text-shadow:0 0 20px rgba(255,180,0,.95),0 2px 0 #7a4b00;
+    opacity:0; transition:opacity .12s, transform .12s; text-align:center; }
+  #combo-pop.show { opacity:1; transform:translate(-50%,-50%) scale(1.28); }
+  #combo-pop .sub { font-size:18px; color:#fff; text-shadow:0 0 8px rgba(0,180,255,.9); }
+  #combo-pop .pts { display:block; font-size:22px; color:#a5ffb0; text-shadow:0 0 10px rgba(80,255,140,.9); margin-top:2px; }
+
+  .float-pts { position:absolute; font-weight:800; font-size:24px; color:#ffe45c;
+    text-shadow:0 0 10px rgba(255,180,0,.9); pointer-events:none; z-index:12;
+    transform:translate(-50%,-50%); animation:floatUp 0.9s ease-out forwards; }
+  .float-pts.gate { color:#7fe6ff; text-shadow:0 0 10px rgba(56,217,255,.9); }
+  @keyframes floatUp {
+    0% { opacity:1; transform:translate(-50%,-50%) scale(0.7); }
+    20% { opacity:1; transform:translate(-50%,-60%) scale(1.15); }
+    100% { opacity:0; transform:translate(-50%,-160%) scale(1.0); }
+  }
 
   #msg-pop { position:absolute; top:22%; left:50%; transform:translateX(-50%);
     font-size:44px; font-weight:800; color:#fff; text-shadow:0 0 18px rgba(80,200,255,1);
@@ -55,7 +66,7 @@
     font-size:12px; text-align:center; pointer-events:none; z-index:9; line-height:1.5; }
   #hint-left { left:14%; } #hint-right { right:14%; }
 
-  /* ---------- overlays ---　------- */
+  /* ---------- overlays ---------- */
   .overlay { position:fixed; inset:0; z-index:40; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:18px;
     background:radial-gradient(ellipse at 50% 20%, #17306e 0%, #0a1030 60%, #060a20 100%); color:#eaf7ff; }
@@ -74,6 +85,12 @@
   .mode-best { font-size:12px; color:#ffe082; }
   #btn-normal { background:linear-gradient(135deg,#1d5fae,#123a78); }
   #btn-challenge { background:linear-gradient(135deg,#b8471d,#7a2412); border-color:rgba(255,190,120,.6); }
+
+  #speed-row { display:flex; gap:10px; pointer-events:auto; }
+  .speed-btn { min-width:92px; min-height:56px; border-radius:14px; border:2px solid rgba(140,220,255,.4);
+    background:rgba(20,40,90,.5); color:#cfeaff; font-size:15px; font-weight:700; }
+  .speed-btn.selected { background:linear-gradient(135deg,#2fa8e0,#1a6fb0); border-color:#8fe0ff; color:#fff;
+    box-shadow:0 0 14px rgba(80,200,255,.6); }
 
   #result-panel { background:rgba(10,18,50,.9); border:1px solid rgba(120,220,255,.5); border-radius:22px;
     padding:22px 28px; width:min(86vw,440px); }
@@ -117,6 +134,11 @@
 <div class="overlay" id="menu-overlay">
   <div id="title-logo">🚁 ドローングランプリ</div>
   <div id="title-sub">ゲートをくぐって アイテムをあつめよう！ぜんぶで 3しゅう</div>
+  <div id="speed-row">
+    <button class="speed-btn" data-speed="slow">ゆっくり</button>
+    <button class="speed-btn selected" data-speed="normal">ふつう</button>
+    <button class="speed-btn" data-speed="fast">はやい</button>
+  </div>
   <button class="mode-btn" id="btn-normal">
     <span class="mode-name">🏁 ノーマルモード</span>
     <span class="mode-desc">まいしゅう おなじコース。じっくりレース！</span>
@@ -178,6 +200,7 @@ const VZ_MAX = 3.2;          // 上下最大速度 m/s（既存踏襲）
 const YAW_MAX = 1.3;         // 旋回速度 rad/s（控えめ）
 const VH_MAX = 4.6;          // 水平最大速度 m/s（既存踏襲）
 const ACCEL = 4.0;           // 目標速度追従係数（既存踏襲）
+const SPEED_PRESETS = { slow: 0.7, normal: 1.0, fast: 1.35 }; // 速度選択の倍率
 const HOVER_H = 2.0;         // ホバー基準
 const CEIL_H = 13.0;         // 天井（レース用に引き上げ）
 const AREA_X = 78;           // フィールド半径（±）
@@ -385,17 +408,27 @@ function courseTangent(t){
 
 // 1周のシーケンス：15ヶ所（アイテム10・ゲート5）
 const SEQ_N = 15;
-const GATE_IDX = new Set([2, 5, 8, 11, 14]);
-const waypoints = []; // { type, pos, mesh, normal(gate用), t }
-const heights = [2.6, 3.4, 4.6, 3.0, 5.4, 3.8, 2.8, 6.2, 4.2, 3.2, 5.0, 3.6, 2.6, 4.8, 3.4];
+const GATE_IDX = new Set([3, 6, 9, 12, 14]);
+// 高所ボーナスアイテム（通常の2倍スコア）：上下移動のインセンティブとして意図的に高い位置に配置
+const BONUS_IDX = new Set([1, 7, 13]);
+const waypoints = []; // { type, pos, mesh, normal(gate用), t, bonus }
+// 高度に大きなメリハリをつけ、低空〜高空の上下移動を促す構成
+const heights = [2.4, 8.6, 3.0, 4.2, 5.6, 3.2, 6.8, 10.4, 4.6, 2.8, 6.0, 3.6, 9.4, 4.8, 3.4];
 
 const itemGeo = new THREE.OctahedronGeometry(1.05);
-function makeItemMesh(){
-  const m = new THREE.Mesh(itemGeo, new THREE.MeshStandardMaterial({
-    color: 0xffd54a, emissive: 0xffb300, emissiveIntensity: 1.0, transparent: true }));
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffe082, transparent: true, opacity: 0.16 }));
+const bonusGeo = new THREE.OctahedronGeometry(1.5);
+function makeItemMesh(bonus){
+  const m = new THREE.Mesh(bonus ? bonusGeo : itemGeo, new THREE.MeshStandardMaterial({
+    color: bonus ? 0xff9df0 : 0xffd54a, emissive: bonus ? 0xff2fb0 : 0xffb300, emissiveIntensity: 1.1, transparent: true }));
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(bonus ? 2.1 : 1.5, 12, 8),
+    new THREE.MeshBasicMaterial({ color: bonus ? 0xffd0f5 : 0xffe082, transparent: true, opacity: bonus ? 0.22 : 0.16 }));
   m.add(halo);
+  if (bonus){
+    // ボーナスアイテムを示す上下の光の柱（見た目のみ・当たり判定なし）
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 40, 6, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffb3f0, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
+    m.add(beam);
+  }
   return m;
 }
 function makeGateMesh(){
@@ -411,12 +444,18 @@ function makeGateMesh(){
     s.position.set(Math.cos(a)*GATE_R, Math.sin(a)*GATE_R, 0);
     g.add(s);
   }
-  // 支柱
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1, 8),
-    new THREE.MeshLambertMaterial({ color: 0x9aa4b8, transparent: true }));
-  g.add(pole);
-  g.userData.ring = ring; g.userData.pole = pole;
+  g.userData.ring = ring;
   return g;
+}
+// ゲート下の支持板（開口の外側・地面付近のみに配置。当たり判定なし・開口は一切塞がない）
+function makeGateStandMesh(gateY){
+  const standH = Math.max(gateY - GATE_R - 0.4, 0.01);
+  if (standH < 0.5) return null; // ゲートが低くて板を置く余地がない場合は省略
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(1.3, standH, 0.18),
+    new THREE.MeshLambertMaterial({ color: 0x9aa4b8, transparent: true, opacity: 0.9 }));
+  plate.position.y = standH / 2;
+  plate.castShadow = true;
+  return plate;
 }
 
 for (let i = 0; i < SEQ_N; i++){
@@ -430,22 +469,23 @@ for (let i = 0; i < SEQ_N; i++){
     mesh = makeGateMesh();
     mesh.position.copy(pos);
     mesh.lookAt(pos.clone().add(tan)); // リング面を進行方向に向ける
-    const pole = mesh.userData.pole;
-    pole.scale.y = pos.y - GATE_R > 0 ? (pos.y - GATE_R) : 0.01;
-    pole.position.y = -(GATE_R + (pos.y - GATE_R)/2);
-    pole.rotation.x = 0;
-    // グループはlookAtで回転済のため、支柱はワールド下向きに再配置
-    mesh.remove(pole);
-    const poleW = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, Math.max(pos.y - GATE_R, 0.01), 8),
-      new THREE.MeshLambertMaterial({ color: 0x9aa4b8 }));
-    poleW.position.set(pos.x, (pos.y - GATE_R)/2, pos.z);
-    scene.add(poleW);
+    // 支持板：リング開口の真横（左右どちらかにオフセット）に立てる。開口の中は一切塞がない。
+    const side = new THREE.Vector3(-tan.z, 0, tan.x); // 進行方向に対して垂直（横方向）
+    const standMesh = makeGateStandMesh(pos.y);
+    if (standMesh){
+      standMesh.position.set(
+        pos.x + side.x * (GATE_R + 0.75),
+        standMesh.position.y,
+        pos.z + side.z * (GATE_R + 0.75));
+      standMesh.lookAt(standMesh.position.clone().add(tan));
+      scene.add(standMesh);
+    }
   } else {
-    mesh = makeItemMesh();
+    mesh = makeItemMesh(BONUS_IDX.has(i));
     mesh.position.copy(pos);
   }
   scene.add(mesh);
-  waypoints.push({ type: isGate ? 'gate' : 'item', pos: pos.clone(), mesh, normal: tan.clone(), t });
+  waypoints.push({ type: isGate ? 'gate' : 'item', pos: pos.clone(), mesh, normal: tan.clone(), t, bonus: BONUS_IDX.has(i) });
 }
 
 // スタート/ゴールライン表示
@@ -503,17 +543,6 @@ const drone = new THREE.Group();
   });
 }
 scene.add(drone);
-
-// 次ターゲット誘導アロー（ドローン上）
-const guideArrow = new THREE.Group();
-{
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 8),
-    new THREE.MeshStandardMaterial({ color: 0xffd54a, emissive: 0xffaa00, emissiveIntensity: 1.4 }));
-  cone.rotation.x = Math.PI/2;
-  cone.position.z = -0.45;
-  guideArrow.add(cone);
-}
-scene.add(guideArrow);
 
 // ドローンの影マーカー
 const shadowMark = new THREE.Mesh(new THREE.CircleGeometry(0.6, 14),
@@ -734,7 +763,9 @@ const S = {
   yawVel: 0,
   countdown: 0,
   prevSide: 0,         // ゲート平面のどちら側にいたか
-  speedMult: 1
+  speedPreset: 'normal',  // ゆっくり/ふつう/はやい（プレイヤー選択）
+  difficultyMult: 1,      // チャレンジモードの周回加速（既存のspeedMult相当）
+  speedMult: 1             // 上記2つを掛け合わせた実効速度倍率（毎フレーム更新）
 };
 
 const el = {
@@ -775,15 +806,31 @@ function showMsg(text, dur = 1.2){
   msgTimer = setTimeout(() => el.msg.classList.remove('show'), dur*1000);
 }
 let comboTimer = null;
-function showCombo(){
+function showCombo(gainedPts){
   const mult = comboMult();
   el.combo.innerHTML = S.combo >= 2
-    ? `${S.combo} コンボ！<div class="sub">スコア ×${mult.toFixed(1)}</div>` : 'ナイス！';
+    ? `${S.combo} コンボ！<div class="sub">スコア ×${mult.toFixed(1)}</div><span class="pts">+${gainedPts}</span>`
+    : `ナイス！<span class="pts">+${gainedPts}</span>`;
   el.combo.classList.add('show');
   if (comboTimer) clearTimeout(comboTimer);
   comboTimer = setTimeout(() => el.combo.classList.remove('show'), 900);
 }
 function comboMult(){ return Math.min(3, 1 + S.combo*0.1); }
+
+// ワールド座標→スクリーン座標の飛び出しスコア表示
+function showFloatingScore(worldPos, text, isGate){
+  const v = worldPos.clone().project(camera);
+  if (v.z > 1) return; // カメラ後方は表示しない
+  const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+  const d = document.createElement('div');
+  d.className = 'float-pts' + (isGate ? ' gate' : '');
+  d.textContent = text;
+  d.style.left = x + 'px';
+  d.style.top = y + 'px';
+  document.getElementById('hud').appendChild(d);
+  setTimeout(() => d.remove(), 950);
+}
 
 function updateWaypointVisual(){
   waypoints.forEach((w, i) => {
@@ -807,7 +854,8 @@ function resetRace(mode){
   S.score = 0; S.combo = 0;
   S.yaw = 0; S.vel.set(0,0,0); S.vy = 0; S.yawVel = 0;
   S.countdown = 3.6;
-  S.speedMult = 1;
+  S.difficultyMult = 1;
+  S.speedMult = SPEED_PRESETS[S.speedPreset];
   const p0 = coursePoint(0);
   const tan0 = courseTangent(0);
   droneBody.position.set(p0.x - 6, HOVER_H + 0.6, p0.z);
@@ -824,6 +872,13 @@ function resetRace(mode){
 
 let countPlayed = [false,false,false,false];
 
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    S.speedPreset = btn.dataset.speed;
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  });
+});
 document.getElementById('btn-normal').addEventListener('click', () => { initAudio(); resetRace('normal'); });
 document.getElementById('btn-challenge').addEventListener('click', () => { initAudio(); resetRace('challenge'); });
 document.getElementById('btn-retry').addEventListener('click', () => resetRace(S.mode));
@@ -851,11 +906,12 @@ function advanceSeq(){
     S.lap++;
     S.seqIdx = 0;
     if (S.mode === 'challenge'){
-      S.speedMult = 1 + CHALLENGE_STEP * (S.lap - 1);
+      S.difficultyMult = 1 + CHALLENGE_STEP * (S.lap - 1);
       showMsg(`ラップ ${S.lap}！ スピードアップ！🔥`, 1.6);
     } else {
       showMsg(`ラップ ${S.lap}！`, 1.4);
     }
+    S.speedMult = SPEED_PRESETS[S.speedPreset] * S.difficultyMult;
     sfxLap();
     el.lap.textContent = `${S.lap}/${TOTAL_LAPS}`;
   }
@@ -869,13 +925,15 @@ function checkWaypoint(dt){
   const dp = new THREE.Vector3(droneBody.position.x, droneBody.position.y, droneBody.position.z);
 
   if (w.type === 'item'){
-    if (dp.distanceTo(w.pos) < 1.9){
+    if (dp.distanceTo(w.pos) < 2.6){
       S.combo++;
-      S.score += Math.round(100 * comboMult());
+      const gained = Math.round((w.bonus ? 200 : 100) * comboMult());
+      S.score += gained;
       el.score.textContent = String(S.score);
-      burst(w.pos, 0xffd54a, 22, 6);
+      burst(w.pos, w.bonus ? 0xff9df0 : 0xffd54a, w.bonus ? 40 : 28, w.bonus ? 10 : 7);
       sfxItem();
-      showCombo();
+      showCombo(gained);
+      showFloatingScore(w.pos, `+${gained}`, false);
       advanceSeq();
     }
   } else {
@@ -885,14 +943,16 @@ function checkWaypoint(dt){
     const radial = rel.clone().addScaledVector(w.normal, -along).length();
     const side = along > 0 ? 1 : (along < 0 ? -1 : 0);
     if (S.prevSide === -1 && side === 1 && Math.abs(along) < 4){
-      if (radial < GATE_R - 0.35){
+      if (radial < GATE_R - 0.15){
         // 成功
         S.combo++;
-        S.score += Math.round(150 * comboMult());
+        const gained = Math.round(150 * comboMult());
+        S.score += gained;
         el.score.textContent = String(S.score);
-        burst(w.pos, 0x38d9ff, 34, 8);
+        burst(w.pos, 0x38d9ff, 46, 10);
         sfxGateOK();
-        showCombo();
+        showCombo(gained);
+        showFloatingScore(w.pos, `+${gained}`, true);
         advanceSeq();
         return;
       } else if (radial < GATE_R * GATE_NEAR){
@@ -1073,18 +1133,6 @@ function tick(){
 
   // ---- ウェイポイント ----
   if (racing) checkWaypoint(dt);
-
-  // 誘導アロー
-  const target = waypoints[S.seqIdx];
-  if (target && (racing || S.phase === 'countdown')){
-    guideArrow.visible = true;
-    guideArrow.position.set(p.x, p.y + 1.3, p.z);
-    guideArrow.lookAt(target.pos);
-    guideArrow.children[0].material.color.set(target.type === 'gate' ? 0x38d9ff : 0xffd54a);
-    guideArrow.children[0].material.emissive.set(target.type === 'gate' ? 0x0aa8ff : 0xffaa00);
-  } else {
-    guideArrow.visible = false;
-  }
 
   // ウェイポイントのアニメーション
   waypoints.forEach((w, i) => {
