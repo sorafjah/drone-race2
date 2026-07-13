@@ -200,16 +200,16 @@ const VZ_MAX = 3.2;          // 上下最大速度 m/s（既存踏襲）
 const YAW_MAX = 1.3;         // 旋回速度 rad/s（控えめ）
 const VH_MAX = 4.6;          // 水平最大速度 m/s（既存踏襲）
 const ACCEL = 4.0;           // 目標速度追従係数（既存踏襲）
-const SPEED_PRESETS = { slow: 0.7, normal: 1.0, fast: 1.35 }; // 速度選択の倍率
+const SPEED_PRESETS = { slow: 1.0, normal: 1.4, fast: 2.0 }; // 速度選択の倍率
 const HOVER_H = 2.0;         // ホバー基準
 const CEIL_H = 13.0;         // 天井（レース用に引き上げ）
 const AREA_X = 78;           // フィールド半径（±）
 const AREA_Z = 56;
 const TOTAL_LAPS = 3;
-const GATE_R = 3.1;          // ゲート開口半径
+const GATE_R = 4.2;          // ゲート開口半径（大きめ）
 const GATE_NEAR = 2.4;       // 失敗判定倍率（開口×この値まで＝ニアミス失敗）
 const PENALTY_SEC = 3.0;     // ゲート失敗ペナルティ
-const CHALLENGE_STEP = 0.22; // 周回ごとの速度上昇率
+const CHALLENGE_STEP = 0.32; // 周回ごとの速度上昇率
 
 /* =========================================================
    基本セットアップ
@@ -340,23 +340,7 @@ const beacons = [];
   });
 }
 
-// 建物ランドマーク（フィールド内・当たり判定あり）
-{
-  const cols = [0xff9a5a, 0x6ac6ff, 0xffd54a, 0x9dff8a, 0xff8ad0];
-  const spots = [[-46,-30,10],[50,-24,14],[-52,26,8],[44,34,12],[-16,44,9],[18,-46,11]];
-  spots.forEach(([x,z,h],i)=>{
-    const b = new THREE.Mesh(new THREE.BoxGeometry(7, h, 7),
-      new THREE.MeshLambertMaterial({ color: cols[i%cols.length] }));
-    b.position.set(x, h/2, z);
-    b.castShadow = true; b.receiveShadow = true;
-    scene.add(b);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(5.4, 3, 4),
-      new THREE.MeshLambertMaterial({ color: 0xffffff }));
-    roof.position.set(x, h+1.5, z); roof.rotation.y = Math.PI/4;
-    scene.add(roof);
-    addStaticBox(x, h/2, z, 7, h, 7);
-  });
-}
+// 板ランドマーク（フィールド内・当たり判定あり）はウェイポイント生成後に配置する（下部を参照）
 
 // 雲
 {
@@ -511,6 +495,43 @@ for (let i = 0; i < SEQ_N; i++){
   }
 }
 
+// 板ランドマーク（フィールド内の目印。コースやウェイポイントから十分離し、進行方向に正対させる）
+{
+  const cols = [0xff9a5a, 0x6ac6ff, 0xffd54a, 0x9dff8a, 0xff8ad0];
+  const PLATE_W = 9, PLATE_T = 0.6; // 板の幅・厚み
+  const PLATE_OFFSET = 15; // コースラインから外側へどれだけ離すか（ウェイポイントの安全マージンを確保）
+  const plateTs = [0.06, 0.24, 0.34, 0.44, 0.62, 0.80]; // コース上の基準位置（t=0..1）
+  plateTs.forEach((t, i) => {
+    const base = coursePoint(t);
+    const tan = courseTangent(t);
+    const side = new THREE.Vector3(-tan.z, 0, tan.x); // コース進行方向に対して垂直（横方向）＝外側方向
+    const dir = (i % 2 === 0) ? 1 : -1; // コースの内外交互に配置してバリエーションを出す
+    const x = base.x + side.x * PLATE_OFFSET * dir;
+    const z = base.z + side.z * PLATE_OFFSET * dir;
+    const h = 8 + (i % 3) * 3;
+    // 板の面をコースの進行方向（tan）に正対させる＝プレイヤーがコースを飛ぶ向きから見て正面を向く
+    const ang = Math.atan2(tan.x, tan.z);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(PLATE_W, h, PLATE_T),
+      new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
+    b.position.set(x, h/2, z);
+    b.rotation.y = ang;
+    b.castShadow = true; b.receiveShadow = true;
+    scene.add(b);
+    // 縁取り（視認性アップ）
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(PLATE_W+0.5, h+0.5, PLATE_T*0.5),
+      new THREE.MeshLambertMaterial({ color: 0xffffff }));
+    frame.position.set(x, h/2, z);
+    frame.rotation.y = ang;
+    scene.add(frame);
+    b.renderOrder = 1;
+    // 当たり判定は板の実寸に合わせる（回転を考慮した近似ボックス）
+    const cosA = Math.abs(Math.cos(ang)), sinA = Math.abs(Math.sin(ang));
+    const bx = PLATE_W*cosA + PLATE_T*sinA;
+    const bz = PLATE_W*sinA + PLATE_T*cosA;
+    addStaticBox(x, h/2, z, bx, h, bz);
+  });
+}
+
 /* =========================================================
    ドローン本体（見た目）
 ========================================================= */
@@ -549,6 +570,26 @@ const shadowMark = new THREE.Mesh(new THREE.CircleGeometry(0.6, 14),
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }));
 shadowMark.rotation.x = -Math.PI/2;
 scene.add(shadowMark);
+
+// 次のターゲットを指し示す誘導ビーム（1本を動的に移動。本体に固定されないので視界を邪魔しない）
+const guideBeam = new THREE.Group();
+{
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.5, 60, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffe45c, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+  beam.position.y = 30;
+  guideBeam.add(beam);
+  const groundRing = new THREE.Mesh(
+    new THREE.RingGeometry(2.2, 3.0, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffe45c, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+  groundRing.rotation.x = -Math.PI/2;
+  groundRing.position.y = 0.08;
+  guideBeam.add(groundRing);
+  guideBeam.userData.beam = beam;
+  guideBeam.userData.ring = groundRing;
+}
+guideBeam.visible = false;
+scene.add(guideBeam);
 
 /* =========================================================
    パーティクル
@@ -763,6 +804,8 @@ const S = {
   yawVel: 0,
   countdown: 0,
   prevSide: 0,         // ゲート平面のどちら側にいたか
+  prevPos: new THREE.Vector3(), // 前フレームのドローン位置（線分判定用）
+  hasPrev: false,      // prevPosが有効か
   speedPreset: 'normal',  // ゆっくり/ふつう/はやい（プレイヤー選択）
   difficultyMult: 1,      // チャレンジモードの周回加速（既存のspeedMult相当）
   speedMult: 1             // 上記2つを掛け合わせた実効速度倍率（毎フレーム更新）
@@ -862,6 +905,7 @@ function resetRace(mode){
   droneBody.velocity.set(0,0,0);
   S.yaw = Math.atan2(-tan0.x, -tan0.z) + Math.PI; // 進行方向を向く
   S.prevSide = 0;
+  S.hasPrev = false;
   updateWaypointVisual();
   el.menu.classList.add('hidden');
   el.result.classList.add('hidden');
@@ -916,16 +960,30 @@ function advanceSeq(){
     el.lap.textContent = `${S.lap}/${TOTAL_LAPS}`;
   }
   S.prevSide = 0;
+  S.hasPrev = false; // 新ターゲットに切り替わった瞬間の誤判定を防ぐ
   updateWaypointVisual();
 }
 
 function checkWaypoint(dt){
   const w = waypoints[S.seqIdx];
   if (!w) return;
-  const dp = new THREE.Vector3(droneBody.position.x, droneBody.position.y, droneBody.position.z);
+  const curr = new THREE.Vector3(droneBody.position.x, droneBody.position.y, droneBody.position.z);
+  const prev = S.hasPrev ? S.prevPos.clone() : curr.clone();
 
   if (w.type === 'item'){
-    if (dp.distanceTo(w.pos) < 2.6){
+    // 前フレーム位置と現在位置を結ぶ線分と、アイテム中心との最短距離で判定（高速でもすり抜けない）
+    const seg = curr.clone().sub(prev);
+    const segLen2 = seg.lengthSq();
+    let dist;
+    if (segLen2 < 1e-6){
+      dist = curr.distanceTo(w.pos);
+    } else {
+      let t = w.pos.clone().sub(prev).dot(seg) / segLen2;
+      t = Math.max(0, Math.min(1, t));
+      const closest = prev.clone().addScaledVector(seg, t);
+      dist = closest.distanceTo(w.pos);
+    }
+    if (dist < 2.8){
       S.combo++;
       const gained = Math.round((w.bonus ? 200 : 100) * comboMult());
       S.score += gained;
@@ -937,13 +995,17 @@ function checkWaypoint(dt){
       advanceSeq();
     }
   } else {
-    // ゲート：平面横断で判定
-    const rel = dp.clone().sub(w.pos);
-    const along = rel.dot(w.normal);           // 進行方向の符号つき距離
-    const radial = rel.clone().addScaledVector(w.normal, -along).length();
-    const side = along > 0 ? 1 : (along < 0 ? -1 : 0);
-    if (S.prevSide === -1 && side === 1 && Math.abs(along) < 4){
-      if (radial < GATE_R - 0.15){
+    // ゲート：前フレーム位置と現在位置を結ぶ線分がゲート平面を横断するかで判定（トンネリング対策）
+    const alongPrev = prev.clone().sub(w.pos).dot(w.normal);
+    const alongCurr = curr.clone().sub(w.pos).dot(w.normal);
+    // 手前(負)から奥(正)へ、またはどちら向きでも符号が変わったら横断とみなす
+    if (alongPrev < 0 && alongCurr >= 0 && (alongCurr - alongPrev) > 1e-4){
+      const tt = alongPrev / (alongPrev - alongCurr); // 平面との交差点パラメータ 0..1
+      const cross = prev.clone().addScaledVector(curr.clone().sub(prev), tt);
+      const relC = cross.clone().sub(w.pos);
+      const alongC = relC.dot(w.normal);
+      const radial = relC.clone().addScaledVector(w.normal, -alongC).length();
+      if (radial < GATE_R + 0.2){
         // 成功
         S.combo++;
         const gained = Math.round(150 * comboMult());
@@ -967,8 +1029,6 @@ function checkWaypoint(dt){
         return;
       }
     }
-    S.prevSide = side !== 0 ? side : S.prevSide;
-    if (S.prevSide === 0) S.prevSide = side || -1;
   }
 }
 
@@ -1087,7 +1147,7 @@ function tick(){
   // ---- 操作 → 速度 ----
   const spd = S.speedMult;
   const targetYawVel = controllable ? -stick.L.x * YAW_MAX : 0;
-  const targetVy     = controllable ? -stick.L.y * VZ_MAX * Math.min(spd, 1.35) : 0;
+  const targetVy     = controllable ? -stick.L.y * VZ_MAX * Math.min(spd, 2.0) : 0;
   const fwd = controllable ? -stick.R.y * VH_MAX * spd : 0;
   const strafe = controllable ? stick.R.x * VH_MAX * spd : 0;
 
@@ -1133,6 +1193,11 @@ function tick(){
 
   // ---- ウェイポイント ----
   if (racing) checkWaypoint(dt);
+  // 前フレーム位置を記録（線分ベース判定用）。レース中のみ有効化。
+  if (racing){
+    S.prevPos.set(p.x, p.y, p.z);
+    S.hasPrev = true;
+  }
 
   // ウェイポイントのアニメーション
   waypoints.forEach((w, i) => {
@@ -1146,6 +1211,22 @@ function tick(){
   });
   if (window.__towerTop) window.__towerTop.material.emissiveIntensity = 0.9 + Math.sin(elapsed*3)*0.4;
   beacons.forEach((b,i)=>{ b.material.emissiveIntensity = 1.2 + Math.sin(elapsed*2 + i*1.6)*0.5; });
+
+  // 次のターゲットへ誘導ビームを移動
+  const nextW = waypoints[S.seqIdx];
+  if (nextW && (racing || S.phase === 'countdown')){
+    guideBeam.visible = true;
+    guideBeam.position.set(nextW.pos.x, 0, nextW.pos.z);
+    const col = nextW.type === 'gate' ? 0x38d9ff : (nextW.bonus ? 0xff6bd6 : 0xffe45c);
+    guideBeam.userData.beam.material.color.setHex(col);
+    guideBeam.userData.ring.material.color.setHex(col);
+    const pulse = 0.5 + Math.sin(elapsed*5) * 0.5;
+    guideBeam.userData.beam.material.opacity = 0.18 + pulse * 0.18;
+    guideBeam.userData.ring.material.opacity = 0.4 + pulse * 0.4;
+    guideBeam.userData.ring.scale.setScalar(1 + pulse * 0.12);
+  } else {
+    guideBeam.visible = false;
+  }
 
   updateParticles(dt);
 
