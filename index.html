@@ -4,1259 +4,936 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>ドローングランプリ</title>
+<title>ぴよドローン スカイアタック(リアルそうじゅう版)</title>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#0a1030; touch-action:none; overscroll-behavior:none;
-    font-family:"BIZ UDPGothic","Hiragino Kaku Gothic ProN",sans-serif; }
-  #game-canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+html,body{width:100%;height:100%;overflow:hidden;background:#8fd3ff;font-family:'BIZ UDPGothic','Hiragino Maru Gothic ProN',sans-serif;touch-action:none;overscroll-behavior:none;position:fixed;}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+.chip{background:rgba(0,0,0,0.45);color:#fff;border-radius:14px;padding:6px 14px;font-weight:700;font-size:18px;line-height:1.3;}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;display:flex;justify-content:center;gap:10px;pointer-events:none;z-index:5;}
+#mm{position:fixed;left:10px;top:calc(env(safe-area-inset-top,0px) + 10px);width:110px;height:110px;z-index:5;pointer-events:none;}
+#spd{position:fixed;right:14px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:5;pointer-events:none;font-size:18px;}
+#cd{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:110px;font-weight:700;color:#fff;text-shadow:0 4px 18px rgba(0,0,0,0.5);pointer-events:none;z-index:8;}
+#popup{position:fixed;top:24%;left:0;right:0;text-align:center;font-size:34px;font-weight:700;color:#ffec6e;text-shadow:0 3px 10px rgba(0,0,0,0.6);pointer-events:none;opacity:0;transform:scale(0.9);transition:opacity .25s, transform .25s;z-index:8;}
+#popup.show{opacity:1;transform:scale(1.08);}
+.ov{position:fixed;inset:0;background:rgba(20,40,70,0.65);display:flex;align-items:center;justify-content:center;z-index:10;}
+.panel{background:#fff;border-radius:24px;padding:30px 34px;text-align:center;max-width:88%;box-shadow:0 10px 40px rgba(0,0,0,0.35);}
+.panel h1{font-size:32px;color:#2a7fe8;margin-bottom:8px;}
+.panel p{font-size:16px;color:#444;margin:6px 0;line-height:1.55;}
+.bigbtn{margin-top:16px;display:inline-block;background:#2a7fe8;color:#fff;font-size:24px;font-weight:700;padding:14px 46px;border-radius:40px;border:none;font-family:inherit;cursor:pointer;min-height:44px;}
+.speedBtn{font-family:inherit;font-size:17px;font-weight:700;padding:12px 16px;min-height:48px;border-radius:16px;border:3px solid #cfd8e6;background:#f0f4fa;color:#456;cursor:pointer;}
+.speedBtn.sel{background:#2a7fe8;color:#fff;border-color:#1a5fc0;}
+.speedBtn:active{transform:scale(0.96);}
+.bigbtn:active{transform:scale(0.96);}
+#resTimeBig{font-size:48px;font-weight:700;color:#2a7fe8;margin:8px 0;}
+#resBest{font-size:20px;color:#e8a01e;font-weight:700;margin:4px 0;min-height:26px;}
+.hidden{display:none !important;}
 
-  /* ---------- HUD ---------- */
-  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
-  #top-bar { position:absolute; top:calc(8px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
-    display:flex; gap:10px; align-items:center; }
-  .hud-box { background:rgba(8,14,40,.72); border:1px solid rgba(120,220,255,.45); border-radius:12px;
-    padding:6px 14px; color:#eaf7ff; text-align:center; min-width:88px; backdrop-filter:blur(4px); }
-  .hud-label { font-size:10px; color:#8fd8ff; letter-spacing:.12em; }
-  .hud-value { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.15; }
-  #hud-lap .hud-value { color:#ffe082; }
-  #hud-score .hud-value { color:#a5ffb0; }
-
-  #minimap { position:absolute; top:calc(8px + env(safe-area-inset-top)); right:10px;
-    width:148px; height:148px; border-radius:14px; border:1px solid rgba(120,220,255,.45);
-    background:rgba(8,14,40,.66); }
-
-  #mute-btn { position:absolute; top:calc(8px + env(safe-area-inset-top)); left:10px;
-    width:48px; height:48px; border-radius:12px; border:1px solid rgba(120,220,255,.45);
-    background:rgba(8,14,40,.72); color:#eaf7ff; font-size:22px; pointer-events:auto; }
-
-  #combo-pop { position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(1);
-    font-size:40px; font-weight:800; color:#ffe45c; text-shadow:0 0 20px rgba(255,180,0,.95),0 2px 0 #7a4b00;
-    opacity:0; transition:opacity .12s, transform .12s; text-align:center; }
-  #combo-pop.show { opacity:1; transform:translate(-50%,-50%) scale(1.28); }
-  #combo-pop .sub { font-size:18px; color:#fff; text-shadow:0 0 8px rgba(0,180,255,.9); }
-  #combo-pop .pts { display:block; font-size:22px; color:#a5ffb0; text-shadow:0 0 10px rgba(80,255,140,.9); margin-top:2px; }
-
-  .float-pts { position:absolute; font-weight:800; font-size:24px; color:#ffe45c;
-    text-shadow:0 0 10px rgba(255,180,0,.9); pointer-events:none; z-index:12;
-    transform:translate(-50%,-50%); animation:floatUp 0.9s ease-out forwards; }
-  .float-pts.gate { color:#7fe6ff; text-shadow:0 0 10px rgba(56,217,255,.9); }
-  @keyframes floatUp {
-    0% { opacity:1; transform:translate(-50%,-50%) scale(0.7); }
-    20% { opacity:1; transform:translate(-50%,-60%) scale(1.15); }
-    100% { opacity:0; transform:translate(-50%,-160%) scale(1.0); }
-  }
-
-  #msg-pop { position:absolute; top:22%; left:50%; transform:translateX(-50%);
-    font-size:44px; font-weight:800; color:#fff; text-shadow:0 0 18px rgba(80,200,255,1);
-    opacity:0; transition:opacity .25s; }
-  #msg-pop.show { opacity:1; }
-
-  #flash-red { position:fixed; inset:0; background:radial-gradient(ellipse at center, rgba(255,40,40,.15), rgba(255,0,0,.55));
-    opacity:0; pointer-events:none; z-index:20; transition:opacity .5s; }
-  #flash-red.show { opacity:1; transition:opacity .05s; }
-
-  .stick-base { position:fixed; width:120px; height:120px; border-radius:50%;
-    border:2px solid rgba(140,220,255,.55); background:rgba(20,40,90,.30);
-    transform:translate(-50%,-50%); display:none; pointer-events:none; z-index:15; }
-  .stick-knob { position:absolute; width:56px; height:56px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #bfeaff, #3f8fdc 70%);
-    box-shadow:0 0 12px rgba(90,200,255,.8); left:50%; top:50%; transform:translate(-50%,-50%); }
-  .stick-hint { position:fixed; bottom:calc(26px + env(safe-area-inset-bottom)); color:rgba(200,235,255,.75);
-    font-size:12px; text-align:center; pointer-events:none; z-index:9; line-height:1.5; }
-  #hint-left { left:14%; } #hint-right { right:14%; }
-
-  /* ---------- overlays ---------- */
-  .overlay { position:fixed; inset:0; z-index:40; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:18px;
-    background:radial-gradient(ellipse at 50% 20%, #17306e 0%, #0a1030 60%, #060a20 100%); color:#eaf7ff; }
-  .overlay.hidden { display:none; }
-  #title-logo { font-size:min(9vw,54px); font-weight:800; letter-spacing:.06em;
-    background:linear-gradient(180deg,#dff6ff,#5fc5ff 55%,#2f7fe0);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-    text-shadow:0 0 30px rgba(70,170,255,.35); }
-  #title-sub { font-size:15px; color:#9fd4ff; margin-top:-8px; }
-  .mode-btn { pointer-events:auto; width:min(78vw,420px); min-height:88px; border-radius:20px;
-    border:2px solid rgba(140,220,255,.6); color:#fff; padding:14px 18px; text-align:left;
-    display:flex; flex-direction:column; gap:4px; }
-  .mode-btn:active { transform:scale(.97); }
-  .mode-name { font-size:24px; font-weight:800; }
-  .mode-desc { font-size:13px; color:#d8f0ff; }
-  .mode-best { font-size:12px; color:#ffe082; }
-  #btn-normal { background:linear-gradient(135deg,#1d5fae,#123a78); }
-  #btn-challenge { background:linear-gradient(135deg,#b8471d,#7a2412); border-color:rgba(255,190,120,.6); }
-
-  #speed-row { display:flex; gap:10px; pointer-events:auto; }
-  .speed-btn { min-width:92px; min-height:56px; border-radius:14px; border:2px solid rgba(140,220,255,.4);
-    background:rgba(20,40,90,.5); color:#cfeaff; font-size:15px; font-weight:700; }
-  .speed-btn.selected { background:linear-gradient(135deg,#2fa8e0,#1a6fb0); border-color:#8fe0ff; color:#fff;
-    box-shadow:0 0 14px rgba(80,200,255,.6); }
-
-  #result-panel { background:rgba(10,18,50,.9); border:1px solid rgba(120,220,255,.5); border-radius:22px;
-    padding:22px 28px; width:min(86vw,440px); }
-  #result-title { font-size:30px; font-weight:800; text-align:center; color:#ffe45c; margin-bottom:6px; }
-  #result-mode { text-align:center; font-size:13px; color:#9fd4ff; margin-bottom:12px; }
-  .lap-row { display:flex; justify-content:space-between; font-size:17px; padding:4px 2px;
-    font-variant-numeric:tabular-nums; border-bottom:1px dashed rgba(140,220,255,.25); }
-  .lap-row.total { font-size:22px; font-weight:800; color:#a5ffb0; border-bottom:none; margin-top:6px; }
-  #result-best { text-align:center; margin-top:10px; font-size:15px; color:#ffe082; }
-  #result-score { text-align:center; margin-top:4px; font-size:15px; color:#a5ffb0; }
-  #new-record { text-align:center; font-size:20px; font-weight:800; color:#ff9df0;
-    text-shadow:0 0 12px rgba(255,120,230,.8); margin-top:6px; display:none; }
-  .btn-row { display:flex; gap:14px; margin-top:8px; }
-  .action-btn { pointer-events:auto; min-width:150px; min-height:56px; border-radius:16px; border:none;
-    font-size:18px; font-weight:700; color:#fff; }
-  #btn-retry { background:linear-gradient(135deg,#26a95c,#137a3c); }
-  #btn-menu, #btn-menu2 { background:linear-gradient(135deg,#4b6ab0,#2c407c); }
+/* ===== 仮想スティック(実機ドローンプロポ方式) ===== */
+.stickZone{
+  position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:9;
+  width:150px;height:150px;border-radius:50%;
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.18);
+  display:none;touch-action:none;
+}
+#stickL{left:18px;}
+#stickR{right:18px;}
+.stickKnob{
+  position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-31px 0 0 -31px;
+  border-radius:50%;background:radial-gradient(circle at 32% 30%, rgba(255,255,255,.85), rgba(255,214,150,.55) 75%);
+  border:2px solid rgba(255,255,255,.55);box-shadow:0 3px 8px rgba(0,0,0,.18);
+}
+.stickLabel{position:absolute;width:100%;text-align:center;top:-26px;font-size:12px;color:rgba(255,255,255,.75);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4);}
 </style>
 </head>
 <body>
-<canvas id="game-canvas"></canvas>
-
+<canvas id="game"></canvas>
+<canvas id="mm" width="220" height="220"></canvas>
 <div id="hud">
-  <button id="mute-btn" aria-label="おんりょう">🔊</button>
-  <div id="top-bar">
-    <div class="hud-box" id="hud-time"><div class="hud-label">タイム</div><div class="hud-value" id="time-val">0:00.0</div></div>
-    <div class="hud-box" id="hud-lap"><div class="hud-label">ラップ</div><div class="hud-value" id="lap-val">1/3</div></div>
-    <div class="hud-box" id="hud-score"><div class="hud-label">スコア</div><div class="hud-value" id="score-val">0</div></div>
-  </div>
-  <canvas id="minimap" width="296" height="296"></canvas>
-  <div id="combo-pop"></div>
-  <div id="msg-pop"></div>
-  <div class="stick-hint" id="hint-left">ひだり：うえした・むき</div>
-  <div class="stick-hint" id="hint-right">みぎ：まえうしろ・よこ</div>
+  <div class="chip" id="lapEl">LAP 1/3</div>
+  <div class="chip" id="timeEl">0:00.00</div>
+  <div class="chip" id="starEl">⭐0</div>
 </div>
-<div id="flash-red"></div>
+<div class="chip" id="spd">0 km/h</div>
 
-<div class="stick-base" id="stick-l"><div class="stick-knob" id="knob-l"></div></div>
-<div class="stick-base" id="stick-r"><div class="stick-knob" id="knob-r"></div></div>
+<!-- 実機ドローンと同じ操作: 左スティック=たかさ+むき、右スティック=前後左右 -->
+<div class="stickZone" id="stickL"><div class="stickLabel">たかさ・むき</div><div class="stickKnob" id="knobL"></div></div>
+<div class="stickZone" id="stickR"><div class="stickLabel">前後・左右</div><div class="stickKnob" id="knobR"></div></div>
 
-<div class="overlay" id="menu-overlay">
-  <div id="title-logo">🚁 ドローングランプリ</div>
-  <div id="title-sub">ゲートをくぐって アイテムをあつめよう！ぜんぶで 3しゅう</div>
-  <div id="speed-row">
-    <button class="speed-btn" data-speed="slow">ゆっくり</button>
-    <button class="speed-btn selected" data-speed="normal">ふつう</button>
-    <button class="speed-btn" data-speed="fast">はやい</button>
-  </div>
-  <button class="mode-btn" id="btn-normal">
-    <span class="mode-name">🏁 ノーマルモード</span>
-    <span class="mode-desc">まいしゅう おなじコース。じっくりレース！</span>
-    <span class="mode-best" id="best-normal">ベスト：--:--.-</span>
-  </button>
-  <button class="mode-btn" id="btn-challenge">
-    <span class="mode-name">🔥 チャレンジモード</span>
-    <span class="mode-desc">しゅうかいごとに スピードアップ！</span>
-    <span class="mode-best" id="best-challenge">ベスト：--:--.-</span>
-  </button>
-</div>
-
-<div class="overlay hidden" id="result-overlay">
-  <div id="result-panel">
-    <div id="result-title">🏆 ゴール！</div>
-    <div id="result-mode"></div>
-    <div id="lap-rows"></div>
-    <div id="result-score"></div>
-    <div id="result-best"></div>
-    <div id="new-record">✨ しんきろく！ ✨</div>
-    <div class="btn-row">
-      <button class="action-btn" id="btn-retry">もういちど</button>
-      <button class="action-btn" id="btn-menu">モードせんたく</button>
+<div id="cd"></div>
+<div id="popup"></div>
+<div class="ov" id="titleOv">
+  <div class="panel">
+    <h1>🚁 ぴよドローン スカイアタック</h1>
+    <p>本物のドローンとおなじ、そうじゅうかんかくで空をとぼう！</p>
+    <p><b>左スティック</b>：上下でたかさ、左右で機体のむきをかえる(せんかい)<br>
+    <b>右スティック</b>：おくにたおすと前へ、左右にたおすと横へすすむ</p>
+    <p>スティックをはなすと、その場でホバリング(空中せいし)するよ</p>
+    <p>✨リングをくぐると<b>スピードアップ</b>！<br>🧱かべは よけよう！ ⭐スターもあつめてね</p>
+    <p style="margin-top:10px;font-weight:700;color:#2a7fe8;">スピードをえらんでね</p>
+    <div id="speedSel" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;">
+      <button class="speedBtn" data-speed="slow">🐢 ゆっくり</button>
+      <button class="speedBtn" data-speed="normal">🚶 ふつう</button>
+      <button class="speedBtn" data-speed="fast">⚡ こうそく</button>
     </div>
+    <p id="titleBest" style="color:#e8a01e;font-weight:700;"></p>
+    <button class="bigbtn" id="btnStart">スタート！</button>
   </div>
 </div>
-
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
-} }
-</script>
-
-<script>
-// ---- ダブルタップズーム・ピンチズーム・コンテキストメニュー防止 ----
-(function(){
-  let lastEnd = 0;
-  document.addEventListener('touchmove', e => { e.preventDefault(); }, { passive:false });
-  document.addEventListener('touchend', e => {
-    const now = Date.now();
-    if (now - lastEnd < 350) e.preventDefault();
-    lastEnd = now;
-  }, { passive:false });
-  document.addEventListener('gesturestart', e => e.preventDefault());
-  document.addEventListener('gesturechange', e => e.preventDefault());
-  document.addEventListener('contextmenu', e => e.preventDefault());
-})();
-</script>
-
+<div class="ov hidden" id="resultOv">
+  <div class="panel">
+    <h1>🏁 ゴール！</h1>
+    <div id="resTimeBig">0:00.00</div>
+    <div id="resBest"></div>
+    <p id="resStar">⭐ 0こ / 16こ</p>
+    <p id="resRing">✨ リング 0回</p>
+    <button class="bigbtn" id="btnAgain">もういちど</button>
+  </div>
+</div>
 <script type="module">
-import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
+// ぴよドローン スカイアタック(リアルそうじゅう版) v2.0 (2026-07-14)
+// piyo-drone-sky-attackのコース(リング/かべ/スター/風)をそのまま使用し、
+// 移動方式を「Uぱらめーた自動前進」から「drone-delivery方式の自由飛行(2本スティック)」に変更。
+// 左スティック: y=たかさ(スロットル) / x=せんかい(ヨー)
+// 右スティック: y=前後(ピッチ) / x=左右(ロール/ストレイフ)
+// スティックをはなすと目標速度0=ホバリングする(実機ドローンと同じ挙動)。
+// 物理エンジン不使用(カイネマティック+指数減衰) / dt 1/30クランプ(120Hz対応) / ダブルタップ拡大防止あり
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-/* =========================================================
-   定数
-========================================================= */
-const VZ_MAX = 3.2;          // 上下最大速度 m/s（既存踏襲）
-const YAW_MAX = 1.3;         // 旋回速度 rad/s（控えめ）
-const VH_MAX = 4.6;          // 水平最大速度 m/s（既存踏襲）
-const ACCEL = 4.0;           // 目標速度追従係数（既存踏襲）
-const SPEED_PRESETS = { slow: 1.0, normal: 1.4, fast: 2.0 }; // 速度選択の倍率
-const HOVER_H = 2.0;         // ホバー基準
-const CEIL_H = 13.0;         // 天井（レース用に引き上げ）
-const AREA_X = 78;           // フィールド半径（±）
-const AREA_Z = 56;
-const TOTAL_LAPS = 3;
-const GATE_R = 4.2;          // ゲート開口半径（大きめ）
-const GATE_NEAR = 2.4;       // 失敗判定倍率（開口×この値まで＝ニアミス失敗）
-const PENALTY_SEC = 3.0;     // ゲート失敗ペナルティ
-const CHALLENGE_STEP = 0.32; // 周回ごとの速度上昇率
-
-/* =========================================================
-   基本セットアップ
-========================================================= */
-const canvas = document.getElementById('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+// ===== 基本セットアップ =====
+const canvas = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8fd0ff);
-scene.fog = new THREE.Fog(0x9ed8ff, 60, 240);
-
-const camera = new THREE.PerspectiveCamera(68, window.innerWidth/window.innerHeight, 0.1, 500);
-camera.position.set(0, 6, 12);
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
+scene.background = new THREE.Color(0x8fd3ff);
+scene.fog = new THREE.Fog(0x8fd3ff, 130, 430);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
+function onResize(){
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
 
-// ライティング
-const hemi = new THREE.HemisphereLight(0xdff2ff, 0x4a6a3a, 0.9);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff4d8, 1.5);
-sun.position.set(60, 90, 40);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -100; sun.shadow.camera.right = 100;
-sun.shadow.camera.top = 100; sun.shadow.camera.bottom = -100;
-sun.shadow.camera.far = 300;
+scene.add(new THREE.HemisphereLight(0xcfe9ff, 0x8a7a55, 0.95));
+const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+sun.position.set(90, 140, 50);
 scene.add(sun);
 
-/* =========================================================
-   物理ワールド
-========================================================= */
-const world = new CANNON.World({ gravity: new CANNON.Vec3(0, 0, 0) });
-const groundBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane() });
-groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
-world.addBody(groundBody);
+// ===== ユーティリティ =====
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const wrap01 = v=>{ v%=1; if(v<0)v+=1; return v; };
+const lerp = (a,b,t)=>a+(b-a)*t;
+const uDiff = (a,b)=>{ let d = wrap01(a)-wrap01(b); if(d>0.5)d-=1; if(d<-0.5)d+=1; return d; };
 
-const droneBody = new CANNON.Body({
-  mass: 1, shape: new CANNON.Sphere(0.55),
-  position: new CANNON.Vec3(0, HOVER_H, 0),
-  linearDamping: 0.0, angularDamping: 1.0
-});
-world.addBody(droneBody);
+// ===== 地形 =====
+function terrainH(x,z){
+  return 2.4*Math.sin(x*0.045)*Math.cos(z*0.038)
+       + 1.5*Math.sin(x*0.09+1.7)*Math.sin(z*0.071+0.6)
+       + 0.6*Math.sin(x*0.21+3.1)*Math.cos(z*0.19+1.2);
+}
+function grassBump(x,z){ return 0.16*Math.sin(x*1.15)*Math.sin(z*1.32); }
 
-function addStaticBox(x, y, z, sx, sy, sz){
-  const b = new CANNON.Body({ type: CANNON.Body.STATIC,
-    shape: new CANNON.Box(new CANNON.Vec3(sx/2, sy/2, sz/2)),
-    position: new CANNON.Vec3(x, y, z) });
-  world.addBody(b);
+// ===== コース(CatmullRom閉曲線) =====
+const ctrl = [[0,-95],[52,-88],[92,-52],[98,2],[70,42],[84,88],[40,112],[-12,96],[-44,62],[-88,72],[-114,30],[-98,-22],[-58,-42],[-72,-84],[-32,-104]];
+const curve = new THREE.CatmullRomCurve3(
+  ctrl.map(c=>new THREE.Vector3(c[0], terrainH(c[0],c[1]), c[1])),
+  true, 'catmullrom', 0.5
+);
+const N = 800;
+const samples = [];
+let trackLen = 0;
+{
+  let prev = null;
+  for(let i=0;i<N;i++){
+    const u = i/N;
+    const p = curve.getPoint(u);
+    const t = curve.getTangent(u); t.y = 0; t.normalize();
+    const left = new THREE.Vector3(t.z, 0, -t.x);
+    if(prev) trackLen += p.distanceTo(prev);
+    samples.push({u, pos:p, tan:t, left});
+    prev = p;
+  }
+  trackLen += samples[N-1].pos.distanceTo(samples[0].pos);
+}
+function trackYat(u){
+  const f = wrap01(u)*N, i = Math.floor(f)%N, j = (i+1)%N, t = f-i;
+  return samples[i].pos.y*(1-t) + samples[j].pos.y*t;
+}
+function samplePos(u, out){
+  const f = wrap01(u)*N, i = Math.floor(f)%N, j = (i+1)%N, t = f-i;
+  const a = samples[i], b = samples[j];
+  out.x = a.pos.x*(1-t)+b.pos.x*t;
+  out.z = a.pos.z*(1-t)+b.pos.z*t;
+  out.tx = a.tan.x*(1-t)+b.tan.x*t;
+  out.tz = a.tan.z*(1-t)+b.tan.z*t;
+  out.lx = a.left.x*(1-t)+b.left.x*t;
+  out.lz = a.left.z*(1-t)+b.left.z*t;
+  return out;
+}
+const _b = {x:0,z:0,tx:0,tz:0,lx:0,lz:0};
+function baseAt(u, lat){
+  samplePos(u, _b);
+  const x = _b.x + _b.lx*lat, z = _b.z + _b.lz*lat;
+  return Math.max(trackYat(u), terrainH(x,z)+grassBump(x,z));
+}
+function yawAt(u){ samplePos(u, _b); return Math.atan2(_b.tx, _b.tz); }
+
+// コース上の最近接u・横方向オフセット(lat)・基準高さを求める(自由飛行のための位置推定)
+const _trk = {x:0,z:0,tx:0,tz:0,lx:0,lz:0};
+function nearestTrackInfo(x, z){
+  let bestD = Infinity, bestI = 0;
+  for(let i=0;i<N;i+=4){
+    const s = samples[i];
+    const dx = x-s.pos.x, dz = z-s.pos.z;
+    const d = dx*dx+dz*dz;
+    if(d < bestD){ bestD = d; bestI = i; }
+  }
+  const u = bestI/N;
+  samplePos(u, _trk);
+  const dx = x-_trk.x, dz = z-_trk.z;
+  const lat = dx*_trk.lx + dz*_trk.lz;
+  const base = baseAt(u, lat);
+  return {u, lat, base, lx:_trk.lx, lz:_trk.lz};
 }
 
-/* =========================================================
-   地面・ランドマーク
-========================================================= */
+// ===== 地形メッシュ =====
 {
-  const groundGeo = new THREE.PlaneGeometry(AREA_X*2+120, AREA_Z*2+120, 60, 44);
-  const groundMat = new THREE.MeshLambertMaterial({ color: 0x6fae56 });
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI/2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  const T = 110, SZ = 390;
+  const geo = new THREE.PlaneGeometry(SZ, SZ, T, T);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  const col = new Float32Array(pos.count*3);
+  const tmp = new THREE.Color();
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i);
+    const h = terrainH(x,z)+grassBump(x,z);
+    pos.setY(i, h);
+    const g = clamp(0.62+h*0.05, 0.42, 0.85);
+    tmp.setRGB(0.30*g, 0.55*g, 0.22*g);
+    col[i*3] = tmp.r; col[i*3+1] = tmp.g; col[i*3+2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  scene.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true})));
+}
 
-  // 市松の薄い模様（広さの手がかり）
-  const patchGeo = new THREE.PlaneGeometry(8, 8);
-  const patchMat = new THREE.MeshLambertMaterial({ color: 0x7dbd63 });
-  for (let ix = -8; ix <= 8; ix++){
-    for (let iz = -6; iz <= 6; iz++){
-      if ((ix + iz) % 2 !== 0) continue;
-      const p = new THREE.Mesh(patchGeo, patchMat);
-      p.rotation.x = -Math.PI/2;
-      p.position.set(ix*10, 0.02, iz*10);
-      scene.add(p);
+// ===== ガイドの光の点 =====
+{
+  const cnt = Math.floor(N/6);
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 6),
+    new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.65}), cnt);
+  const m = new THREE.Matrix4(), v = new THREE.Vector3();
+  let k = 0;
+  for(let i=0;i<N;i+=6){
+    const s = samples[i];
+    const y = baseAt(s.u, 0) + 0.6;
+    m.setPosition(v.set(s.pos.x, y, s.pos.z));
+    dots.setMatrixAt(k++, m);
+  }
+  scene.add(dots);
+}
+
+// ===== スタートゲート =====
+{
+  const s = samples[0];
+  const yaw = yawAt(0);
+  const baseY = baseAt(0, 0);
+  const postG = new THREE.CylinderGeometry(0.25, 0.25, 7.5, 10);
+  const postM = new THREE.MeshLambertMaterial({color:0xdddddd});
+  for(const sd of [-1,1]){
+    const p = new THREE.Mesh(postG, postM);
+    p.position.set(s.pos.x+s.left.x*7.2*sd, baseY+3.75, s.pos.z+s.left.z*7.2*sd);
+    scene.add(p);
+  }
+  const cv = document.createElement('canvas'); cv.width=512; cv.height=96;
+  const cx = cv.getContext('2d');
+  cx.fillStyle='#2a7fe8'; cx.fillRect(0,0,512,96);
+  cx.fillStyle='#fff'; cx.font='bold 64px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('START', 256, 50);
+  const ban = new THREE.Mesh(new THREE.BoxGeometry(15.6, 1.6, 0.2), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));
+  ban.position.set(s.pos.x, baseY+7.0, s.pos.z);
+  ban.rotation.y = yaw;
+  scene.add(ban);
+}
+
+// ===== 木・岩 =====
+{
+  const NT = 70, NR = 26;
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.28,0.4,1.8,7), new THREE.MeshLambertMaterial({color:0x7a5230}), NT);
+  const leaves = new THREE.InstancedMesh(new THREE.ConeGeometry(1.7,3.4,8), new THREE.MeshLambertMaterial({color:0x3f8f3f}), NT);
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.9), new THREE.MeshLambertMaterial({color:0x9a9a9a}), NR);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0,1,0), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  function nearTrack(x, z){
+    for(let i=0;i<N;i+=8){
+      const s = samples[i];
+      const dx = x-s.pos.x, dz = z-s.pos.z;
+      if(dx*dx+dz*dz < 12*12) return true;
     }
+    return false;
+  }
+  let pT = 0, pR = 0, guard = 0;
+  while((pT<NT || pR<NR) && guard++<4000){
+    const x = (Math.random()*2-1)*185, z = (Math.random()*2-1)*185;
+    if(Math.hypot(x,z) > 185) continue;
+    if(nearTrack(x, z)) continue;
+    const h = terrainH(x,z)+grassBump(x,z);
+    q.setFromAxisAngle(up, Math.random()*6.28);
+    if(pT < NT){
+      const s2 = 0.7+Math.random()*0.9;
+      m.compose(v.set(x, h+0.9*s2, z), q, sc.set(s2,s2,s2)); trunks.setMatrixAt(pT, m);
+      m.compose(v.set(x, h+3.4*s2, z), q, sc.set(s2,s2,s2)); leaves.setMatrixAt(pT, m);
+      pT++;
+    } else {
+      const s2 = 0.5+Math.random()*1.1;
+      m.compose(v.set(x, h+0.3*s2, z), q, sc.set(s2, s2*0.7, s2)); rocks.setMatrixAt(pR, m);
+      pR++;
+    }
+  }
+  scene.add(trunks); scene.add(leaves); scene.add(rocks);
+}
+
+// ===== 雲 =====
+{
+  const g = new THREE.SphereGeometry(1, 8, 6);
+  const mat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.9});
+  for(let i=0;i<7;i++){
+    const c = new THREE.Mesh(g, mat);
+    c.position.set((Math.random()*2-1)*260, 55+Math.random()*30, (Math.random()*2-1)*260);
+    c.scale.set(14+Math.random()*12, 4+Math.random()*2, 7+Math.random()*4);
+    scene.add(c);
   }
 }
 
-// 中央の目印タワー（迷子防止のシンボル）
-{
-  const towerG = new THREE.Group();
-  const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.2, 3.2, 16, 10),
-    new THREE.MeshLambertMaterial({ color: 0xd8dde8 }));
-  base.position.y = 8; base.castShadow = true;
-  towerG.add(base);
-  const top = new THREE.Mesh(
-    new THREE.SphereGeometry(2.6, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffd54a, emissive: 0xffaa00, emissiveIntensity: 0.9 }));
-  top.position.y = 17.5;
-  towerG.add(top);
-  towerG.position.set(0, 0, 0);
-  scene.add(towerG);
-  addStaticBox(0, 8, 0, 6, 20, 6);
-  window.__towerTop = top;
-}
-
-// 方角ビーコン（北＝青 / 南＝赤 / 東＝緑 / 西＝むらさき）
-const beacons = [];
-[[0,-AREA_Z-18,0x4aa8ff],[0,AREA_Z+18,0xff5a5a],[AREA_X+18,0,0x58e07a],[-AREA_X-18,0,0xb87aff]].forEach(([x,z,c])=>{
+// ===== ドローン機体(前方=+Z) =====
+function buildDrone(bodyColor, propColor){
   const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.8,22,8),
-    new THREE.MeshLambertMaterial({ color: 0xcccccc }));
-  pole.position.y = 11; g.add(pole);
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(2.4,14,10),
-    new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:1.2 }));
-  orb.position.y = 23; g.add(orb);
-  g.position.set(x, 0, z);
+  g.rotation.order = 'YXZ';
+  const inner = new THREE.Group();
+  inner.scale.set(1.9, 1.9, 1.9);
+  g.add(inner);
+  const bodyMat = new THREE.MeshLambertMaterial({color:bodyColor});
+  const armMat  = new THREE.MeshLambertMaterial({color:0x3a4a70});
+  const core = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.42), bodyMat);
+  inner.add(core);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), new THREE.MeshLambertMaterial({color:0x222233}));
+  eye.position.set(0, 0, 0.24);
+  inner.add(eye);
+  const props = [];
+  const offs = [[-0.32,-0.32],[0.32,-0.32],[-0.32,0.32],[0.32,0.32]];
+  for(const [x,z] of offs){
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.05, 0.08), armMat);
+    arm.position.set(x*0.55, 0, z*0.55);
+    arm.lookAt(new THREE.Vector3(x, 0, z).multiplyScalar(2));
+    inner.add(arm);
+    const prop = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.06),
+      new THREE.MeshLambertMaterial({color:propColor, transparent:true, opacity:0.85}));
+    prop.position.set(x, 0.09, z);
+    inner.add(prop);
+    props.push(prop);
+  }
+  for(const sx of [-1,1]){
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.4), armMat);
+    leg.position.set(sx*0.18, -0.16, 0);
+    inner.add(leg);
+  }
   scene.add(g);
-  beacons.push(orb);
-});
-
-// 山（外周の遠景）
-{
-  const mMat = new THREE.MeshLambertMaterial({ color: 0x5b7d8f });
-  const mMat2 = new THREE.MeshLambertMaterial({ color: 0x6d94a8 });
-  const spots = [[-120,-90],[130,-100],[-140,70],[120,95],[0,-150],[-40,140],[80,150],[-170,0],[170,20]];
-  spots.forEach(([x,z],i)=>{
-    const h = 26 + (i%4)*9;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(20 + (i%3)*7, h, 7), i%2 ? mMat : mMat2);
-    m.position.set(x, h/2, z);
-    scene.add(m);
-  });
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(0.95,14), new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.3, depthWrite:false}));
+  sh.rotation.x = -Math.PI/2;
+  scene.add(sh);
+  return {group:g, props, shadow:sh};
 }
 
-// 板ランドマーク（フィールド内・当たり判定あり）はウェイポイント生成後に配置する（下部を参照）
-
-// 雲
-{
-  const cMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent:true, opacity:0.9 });
-  for (let i=0;i<14;i++){
-    const g = new THREE.Group();
-    for (let j=0;j<3;j++){
-      const s = new THREE.Mesh(new THREE.SphereGeometry(4+Math.random()*3, 8, 6), cMat);
-      s.position.set(j*5-5, Math.random()*1.5, Math.random()*2);
-      s.scale.y = 0.55;
-      g.add(s);
-    }
-    g.position.set((Math.random()*2-1)*180, 34+Math.random()*18, (Math.random()*2-1)*160);
-    scene.add(g);
-  }
+// ===== ゲーム定数(実機ドローン方式) =====
+const SPEED_PRESETS = {
+  slow:   {label:'ゆっくり', mult:0.55},
+  normal: {label:'ふつう',   mult:0.78},
+  fast:   {label:'こうそく', mult:1.0},
+};
+let speedKey = 'fast';
+const H_SPEED_MAX = 15.0;   // 前後左右の最大速度 m/s(「こうそく」時)
+const V_SPEED_MAX = 6.2;    // 上下(スロットル)の最大速度 m/s
+const YAW_SPEED = 0.85;     // せんかい速度 rad/s(マイルドに調整済み・プリセットに関わらず一定)
+const YAW_ACCEL = 2.2;      // せんかいの追従の速さ(小さいほどゆっくりじわっと曲がる)
+let H_SPEED = H_SPEED_MAX, V_SPEED = V_SPEED_MAX;
+const ACCEL = 3.4;          // 目標速度への追従の速さ(実機ドローンのような「じわっと」感)
+const RING_BOOST_T = 1.5, RING_BOOST_MULT = 1.4;
+const FINISH_BOOST_T = 4.0, FINISH_BOOST_MULT = 1.7;
+const HIT_SLOW = 0.35, HIT_COOL = 1.2;
+const BOB_AMP = 0.10;
+const FLOOR_MARGIN = 0.35;   // 地面ぎりぎりでとまる高さ
+function applySpeedPreset(key){
+  speedKey = key;
+  const p = SPEED_PRESETS[key];
+  H_SPEED = H_SPEED_MAX * p.mult;
+  V_SPEED = V_SPEED_MAX * p.mult;
 }
 
-/* =========================================================
-   コース（周回パス）と ウェイポイント
-========================================================= */
-// 角丸長方形ループ： 半幅 RX, RZ, 角丸 RC
-const RX = 52, RZ = 36, RC = 20;
-function coursePoint(t){ // t: 0..1
-  const straightX = 2*(RX-RC), straightZ = 2*(RZ-RC), arc = Math.PI*RC/2;
-  const total = 2*straightX + 2*straightZ + 4*arc;
-  let d = ((t % 1) + 1) % 1 * total;
-  const P = new THREE.Vector3();
-  // スタートは (−(RX−RC), −RZ) から +X 方向へ
-  if (d < straightX){ P.set(-(RX-RC)+d, 0, -RZ); return P; }
-  d -= straightX;
-  if (d < arc){ const a = d/RC; P.set((RX-RC)+Math.sin(a)*RC, 0, -RZ+RC-Math.cos(a)*RC); return P; }
-  d -= arc;
-  if (d < straightZ){ P.set(RX, 0, -(RZ-RC)+d); return P; }
-  d -= straightZ;
-  if (d < arc){ const a = d/RC; P.set(RX-RC+Math.cos(a)*RC, 0, (RZ-RC)+Math.sin(a)*RC); return P; }
-  d -= arc;
-  if (d < straightX){ P.set((RX-RC)-d, 0, RZ); return P; }
-  d -= straightX;
-  if (d < arc){ const a = d/RC; P.set(-(RX-RC)-Math.sin(a)*RC, 0, RZ-RC+Math.cos(a)*RC); return P; }
-  d -= arc;
-  if (d < straightZ){ P.set(-RX, 0, (RZ-RC)-d); return P; }
-  d -= straightZ;
-  const a = d/RC; P.set(-RX+RC-Math.cos(a)*RC, 0, -(RZ-RC)-Math.sin(a)*RC); return P;
-}
-function courseTangent(t){
-  const a = coursePoint(t), b = coursePoint(t + 0.002);
-  return b.sub(a).normalize();
-}
+// ===== コースオブジェクト定義(元のレースコースを流用) =====
+const RING_DEFS = [
+  {u:0.05, lat: 0,   alt:3.0}, {u:0.10, lat:-5,   alt:2.2}, {u:0.16, lat: 5,   alt:5.0},
+  {u:0.22, lat: 0,   alt:7.0}, {u:0.28, lat:-3.5, alt:3.0}, {u:0.36, lat: 3.5, alt:2.2},
+  {u:0.42, lat: 0,   alt:5.6}, {u:0.50, lat:-5,   alt:4.0}, {u:0.56, lat: 5,   alt:6.6},
+  {u:0.64, lat: 0,   alt:2.2}, {u:0.70, lat:-3.5, alt:5.0}, {u:0.76, lat: 3.5, alt:3.2},
+  {u:0.90, lat: 0,   alt:4.0, final:true},
+  {u:0.93, lat:-2.6, alt:4.0, final:true},
+  {u:0.96, lat: 2.6, alt:4.0, final:true},
+];
+const LAT_MAX = 8.0;
+const BAR_DEFS = [
+  {u:0.13, kind:'high'}, {u:0.19, kind:'low'},  {u:0.32, kind:'wall', side: 1},
+  {u:0.47, kind:'high'}, {u:0.53, kind:'low'},  {u:0.60, kind:'wall', side:-1},
+  {u:0.73, kind:'high'}, {u:0.80, kind:'wall', side: 1}, {u:0.84, kind:'low'},
+];
+const STAR_DEFS = [
+  [0.03, 3, 5.2],[0.075,-2.2,3.0],[0.135,0,2.2],[0.19,0,5.8],[0.25,3,6.8],
+  [0.31,-4.5,3.0],[0.39,-3,4.2],[0.455,0,2.0],[0.52,3,5.2],[0.585,-3,2.6],
+  [0.62,4.5,3.8],[0.67,0,7.2],[0.735,-4.5,4.5],[0.80,-4.5,3.0],[0.865,0,6.4],[0.915,2.2,2.4],
+];
+const WIND_DEFS = [
+  {a:0.24, b:0.30, push: 3.4},
+  {a:0.66, b:0.72, push:-3.4},
+];
+const RING_PICK_R = 2.3, STAR_PICK_R = 2.0;
+const HIT_WINDOW_U = 5 / trackLen; // かべの当たり判定はコース沿い約5mの範囲
 
-// 1周のシーケンス：15ヶ所（アイテム10・ゲート5）
-const SEQ_N = 15;
-const GATE_IDX = new Set([3, 6, 9, 12, 14]);
-// 高所ボーナスアイテム（通常の2倍スコア）：上下移動のインセンティブとして意図的に高い位置に配置
-const BONUS_IDX = new Set([1, 7, 13]);
-const waypoints = []; // { type, pos, mesh, normal(gate用), t, bonus }
-// 高度に大きなメリハリをつけ、低空〜高空の上下移動を促す構成
-const heights = [2.4, 8.6, 3.0, 4.2, 5.6, 3.2, 6.8, 10.4, 4.6, 2.8, 6.0, 3.6, 9.4, 4.8, 3.4];
-
-const itemGeo = new THREE.OctahedronGeometry(1.05);
-const bonusGeo = new THREE.OctahedronGeometry(1.5);
-function makeItemMesh(bonus){
-  const m = new THREE.Mesh(bonus ? bonusGeo : itemGeo, new THREE.MeshStandardMaterial({
-    color: bonus ? 0xff9df0 : 0xffd54a, emissive: bonus ? 0xff2fb0 : 0xffb300, emissiveIntensity: 1.1, transparent: true }));
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(bonus ? 2.1 : 1.5, 12, 8),
-    new THREE.MeshBasicMaterial({ color: bonus ? 0xffd0f5 : 0xffe082, transparent: true, opacity: bonus ? 0.22 : 0.16 }));
-  m.add(halo);
-  if (bonus){
-    // ボーナスアイテムを示す上下の光の柱（見た目のみ・当たり判定なし）
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 40, 6, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffb3f0, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
-    m.add(beam);
-  }
-  return m;
-}
-function makeGateMesh(){
-  const g = new THREE.Group();
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(GATE_R, 0.28, 12, 40),
-    new THREE.MeshStandardMaterial({ color: 0x38d9ff, emissive: 0x0aa8ff, emissiveIntensity: 1.1, transparent: true }));
-  g.add(ring);
-  // かざりスタッド
-  const studMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x9be8ff, emissiveIntensity: 1.4, transparent: true });
-  for (let i=0;i<8;i++){
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), studMat.clone());
-    const a = i/8*Math.PI*2;
-    s.position.set(Math.cos(a)*GATE_R, Math.sin(a)*GATE_R, 0);
-    g.add(s);
-  }
-  g.userData.ring = ring;
-  return g;
-}
-// ゲート下の支持板（開口の外側・地面付近のみに配置。当たり判定なし・開口は一切塞がない）
-function makeGateStandMesh(gateY){
-  const standH = Math.max(gateY - GATE_R - 0.4, 0.01);
-  if (standH < 0.5) return null; // ゲートが低くて板を置く余地がない場合は省略
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(1.3, standH, 0.18),
-    new THREE.MeshLambertMaterial({ color: 0x9aa4b8, transparent: true, opacity: 0.9 }));
-  plate.position.y = standH / 2;
-  plate.castShadow = true;
-  return plate;
-}
-
-for (let i = 0; i < SEQ_N; i++){
-  const t = i / SEQ_N;
-  const pos = coursePoint(t);
-  pos.y = heights[i];
-  const isGate = GATE_IDX.has(i);
-  const tan = courseTangent(t);
-  let mesh;
-  if (isGate){
-    mesh = makeGateMesh();
-    mesh.position.copy(pos);
-    mesh.lookAt(pos.clone().add(tan)); // リング面を進行方向に向ける
-    // 支持板：リング開口の真横（左右どちらかにオフセット）に立てる。開口の中は一切塞がない。
-    const side = new THREE.Vector3(-tan.z, 0, tan.x); // 進行方向に対して垂直（横方向）
-    const standMesh = makeGateStandMesh(pos.y);
-    if (standMesh){
-      standMesh.position.set(
-        pos.x + side.x * (GATE_R + 0.75),
-        standMesh.position.y,
-        pos.z + side.z * (GATE_R + 0.75));
-      standMesh.lookAt(standMesh.position.clone().add(tan));
-      scene.add(standMesh);
-    }
-  } else {
-    mesh = makeItemMesh(BONUS_IDX.has(i));
-    mesh.position.copy(pos);
-  }
+// ===== オブジェクト生成 =====
+const rings = RING_DEFS.map(d=>{
+  const y = baseAt(d.u, d.lat) + d.alt;
+  samplePos(d.u, _b);
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.2, 10, 28),
+    new THREE.MeshLambertMaterial({color: d.final?0xffb63b:0x3be0c8, emissive: d.final?0xa06010:0x0a7a6a}));
+  mesh.position.set(_b.x+_b.lx*d.lat, y, _b.z+_b.lz*d.lat);
+  mesh.rotation.y = yawAt(d.u);
   scene.add(mesh);
-  waypoints.push({ type: isGate ? 'gate' : 'item', pos: pos.clone(), mesh, normal: tan.clone(), t, bonus: BONUS_IDX.has(i) });
-}
-
-// スタート/ゴールライン表示
-{
-  const p0 = coursePoint(0);
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(6, 0.4, 10, 30, Math.PI),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff6bd6, emissiveIntensity: 0.8 }));
-  arch.position.set(p0.x - 4, 0, p0.z);
-  arch.rotation.y = Math.PI/2;
-  scene.add(arch);
-}
-
-// コースの点線ガイド（地面）
-{
-  const dotGeo = new THREE.CircleGeometry(0.5, 10);
-  const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-  for (let i = 0; i < 90; i++){
-    const p = coursePoint(i/90);
-    const d = new THREE.Mesh(dotGeo, dotMat);
-    d.rotation.x = -Math.PI/2;
-    d.position.set(p.x, 0.05, p.z);
-    scene.add(d);
-  }
-}
-
-// 板ランドマーク（フィールド内の目印。コースやウェイポイントから十分離し、進行方向に正対させる）
-{
-  const cols = [0xff9a5a, 0x6ac6ff, 0xffd54a, 0x9dff8a, 0xff8ad0];
-  const PLATE_W = 9, PLATE_T = 0.6; // 板の幅・厚み
-  const PLATE_OFFSET = 15; // コースラインから外側へどれだけ離すか（ウェイポイントの安全マージンを確保）
-  const plateTs = [0.06, 0.24, 0.34, 0.44, 0.62, 0.80]; // コース上の基準位置（t=0..1）
-  plateTs.forEach((t, i) => {
-    const base = coursePoint(t);
-    const tan = courseTangent(t);
-    const side = new THREE.Vector3(-tan.z, 0, tan.x); // コース進行方向に対して垂直（横方向）＝外側方向
-    const dir = (i % 2 === 0) ? 1 : -1; // コースの内外交互に配置してバリエーションを出す
-    const x = base.x + side.x * PLATE_OFFSET * dir;
-    const z = base.z + side.z * PLATE_OFFSET * dir;
-    const h = 8 + (i % 3) * 3;
-    // 板の面をコースの進行方向（tan）に正対させる＝プレイヤーがコースを飛ぶ向きから見て正面を向く
-    const ang = Math.atan2(tan.x, tan.z);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(PLATE_W, h, PLATE_T),
-      new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
-    b.position.set(x, h/2, z);
-    b.rotation.y = ang;
-    b.castShadow = true; b.receiveShadow = true;
-    scene.add(b);
-    // 縁取り（視認性アップ）
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(PLATE_W+0.5, h+0.5, PLATE_T*0.5),
-      new THREE.MeshLambertMaterial({ color: 0xffffff }));
-    frame.position.set(x, h/2, z);
-    frame.rotation.y = ang;
-    scene.add(frame);
-    b.renderOrder = 1;
-    // 当たり判定は板の実寸に合わせる（回転を考慮した近似ボックス）
-    const cosA = Math.abs(Math.cos(ang)), sinA = Math.abs(Math.sin(ang));
-    const bx = PLATE_W*cosA + PLATE_T*sinA;
-    const bz = PLATE_W*sinA + PLATE_T*cosA;
-    addStaticBox(x, h/2, z, bx, h, bz);
-  });
-}
-
-/* =========================================================
-   ドローン本体（見た目）
-========================================================= */
-const drone = new THREE.Group();
-{
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a7bd5, metalness: 0.3, roughness: 0.5 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.32, 0.9), bodyMat);
-  body.castShadow = true;
-  drone.add(body);
-  const cam = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8),
-    new THREE.MeshStandardMaterial({ color: 0x222833 }));
-  cam.position.set(0, -0.05, -0.5);
-  drone.add(cam);
-  const armMat = new THREE.MeshStandardMaterial({ color: 0x22324a });
-  const rotMat = new THREE.MeshStandardMaterial({ color: 0x9be8ff, transparent: true, opacity: 0.6 });
-  drone.userData.rotors = [];
-  [[-0.62,-0.62],[0.62,-0.62],[-0.62,0.62],[0.62,0.62]].forEach(([x,z])=>{
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.14), armMat);
-    arm.position.set(x*0.55, 0.05, z*0.55);
-    arm.lookAt(new THREE.Vector3(x, 0.05, z).multiplyScalar(2));
-    drone.add(arm);
-    const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 12), rotMat);
-    rotor.position.set(x, 0.18, z);
-    drone.add(rotor);
-    drone.userData.rotors.push(rotor);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
-      new THREE.MeshStandardMaterial({ color: (x<0)===(z<0) ? 0xff5a5a : 0x58e07a, emissive: (x<0)===(z<0) ? 0xff2020 : 0x20c040, emissiveIntensity: 0.9 }));
-    tip.position.set(x, 0.1, z);
-    drone.add(tip);
-  });
-}
-scene.add(drone);
-
-// ドローンの影マーカー
-const shadowMark = new THREE.Mesh(new THREE.CircleGeometry(0.6, 14),
-  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }));
-shadowMark.rotation.x = -Math.PI/2;
-scene.add(shadowMark);
-
-// 次のターゲットを指し示す誘導ビーム（1本を動的に移動。本体に固定されないので視界を邪魔しない）
-const guideBeam = new THREE.Group();
-{
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 0.5, 60, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffe45c, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
-  beam.position.y = 30;
-  guideBeam.add(beam);
-  const groundRing = new THREE.Mesh(
-    new THREE.RingGeometry(2.2, 3.0, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffe45c, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
-  groundRing.rotation.x = -Math.PI/2;
-  groundRing.position.y = 0.08;
-  guideBeam.add(groundRing);
-  guideBeam.userData.beam = beam;
-  guideBeam.userData.ring = groundRing;
-}
-guideBeam.visible = false;
-scene.add(guideBeam);
-
-/* =========================================================
-   パーティクル
-========================================================= */
-const particles = [];
-const partGeo = new THREE.SphereGeometry(0.14, 6, 5);
-function burst(pos, color, n = 26, speed = 7){
-  for (let i = 0; i < n; i++){
-    const m = new THREE.Mesh(partGeo, new THREE.MeshBasicMaterial({ color, transparent: true }));
-    m.position.copy(pos);
-    const v = new THREE.Vector3(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1).normalize()
-      .multiplyScalar(speed * (0.4 + Math.random()*0.6));
-    particles.push({ m, v, life: 0.9 + Math.random()*0.4 });
-    scene.add(m);
-  }
-}
-function updateParticles(dt){
-  for (let i = particles.length-1; i >= 0; i--){
-    const p = particles[i];
-    p.life -= dt;
-    if (p.life <= 0){ scene.remove(p.m); p.m.material.dispose(); particles.splice(i,1); continue; }
-    p.v.y -= 6*dt;
-    p.m.position.addScaledVector(p.v, dt);
-    p.m.material.opacity = Math.min(1, p.life);
-    p.m.scale.setScalar(Math.max(0.2, p.life));
-  }
-}
-
-/* =========================================================
-   オーディオ（Web Audio API）
-========================================================= */
-let AC = null, masterGain, bgmGain, sfxGain, propOsc, propGain, propFilter;
-let muted = false;
-function initAudio(){
-  if (AC) return;
-  AC = new (window.AudioContext || window.webkitAudioContext)();
-  masterGain = AC.createGain(); masterGain.gain.value = 0.9; masterGain.connect(AC.destination);
-  bgmGain = AC.createGain(); bgmGain.gain.value = 0.34; bgmGain.connect(masterGain);
-  sfxGain = AC.createGain(); sfxGain.gain.value = 0.8; sfxGain.connect(masterGain);
-  // 控えめプロペラ音（軽いモーター音）
-  propOsc = AC.createOscillator(); propOsc.type = 'triangle'; propOsc.frequency.value = 90;
-  propFilter = AC.createBiquadFilter(); propFilter.type = 'lowpass'; propFilter.frequency.value = 500;
-  propGain = AC.createGain(); propGain.gain.value = 0.0;
-  propOsc.connect(propFilter); propFilter.connect(propGain); propGain.connect(masterGain);
-  propOsc.start();
-  startBGM();
-}
-function setMuted(v){
-  muted = v;
-  if (masterGain) masterGain.gain.value = v ? 0 : 0.9;
-  document.getElementById('mute-btn').textContent = v ? '🔇' : '🔊';
-}
-document.getElementById('mute-btn').addEventListener('click', () => setMuted(!muted));
-
-// ---- 明るいテクノBGM（16分音符シーケンサ）----
-const BPM = 126, STEP = 60/BPM/4;
-let bgmStep = 0, bgmNext = 0, bgmTimer = null;
-const BASS = [45,45,52,45, 48,45,52,50, 45,45,52,45, 48,50,52,55];       // Aマイナーペンタ基調
-const LEAD = [69,72,76,79];
-const mtof = n => 440 * Math.pow(2, (n-69)/12);
-function schedKick(t){
-  const o = AC.createOscillator(), g = AC.createGain();
-  o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(48, t+0.11);
-  g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.22);
-  o.connect(g); g.connect(bgmGain); o.start(t); o.stop(t+0.24);
-}
-function schedHat(t, open){
-  const len = open ? 0.12 : 0.045;
-  const buf = AC.createBuffer(1, AC.sampleRate*len, AC.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
-  const s = AC.createBufferSource(); s.buffer = buf;
-  const f = AC.createBiquadFilter(); f.type='highpass'; f.frequency.value = 7500;
-  const g = AC.createGain(); g.gain.value = open ? 0.24 : 0.16;
-  s.connect(f); f.connect(g); g.connect(bgmGain); s.start(t);
-}
-function schedBass(t, midi){
-  const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(midi);
-  const f = AC.createBiquadFilter(); f.type='lowpass';
-  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(220, t+STEP*0.9);
-  const g = AC.createGain();
-  g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t+STEP*0.95);
-  o.connect(f); f.connect(g); g.connect(bgmGain); o.start(t); o.stop(t+STEP);
-}
-function schedStab(t){
-  [0,4,7].forEach(iv => {
-    const o = AC.createOscillator(); o.type='square'; o.frequency.value = mtof(69+iv);
-    const g = AC.createGain();
-    g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.3);
-    o.connect(g); g.connect(bgmGain); o.start(t); o.stop(t+0.32);
-  });
-}
-function bgmTick(){
-  if (!AC) return;
-  while (bgmNext < AC.currentTime + 0.15){
-    const s16 = bgmStep % 16, bar = Math.floor(bgmStep/16) % 4;
-    if (s16 % 4 === 0) schedKick(bgmNext);
-    if (s16 % 4 === 2) schedHat(bgmNext, s16 === 14);
-    if (s16 % 2 === 0) schedBass(bgmNext, BASS[s16] + (bar === 3 ? 3 : 0));
-    if (s16 === 8 && bar % 2 === 0) schedStab(bgmNext);
-    bgmNext += STEP;
-    bgmStep++;
-  }
-}
-function startBGM(){
-  bgmNext = AC.currentTime + 0.1; bgmStep = 0;
-  if (bgmTimer) clearInterval(bgmTimer);
-  bgmTimer = setInterval(bgmTick, 40);
-}
-
-// ---- 効果音 ----
-function sfxTone(freq, dur, type='sine', vol=0.4, when=0, slideTo=null){
-  if (!AC) return;
-  const t = AC.currentTime + when;
-  const o = AC.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t+dur);
-  const g = AC.createGain();
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
-  o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t+dur+0.02);
-}
-function sfxItem(){ sfxTone(660,0.1,'sine',0.4); sfxTone(880,0.16,'sine',0.4,0.07); }
-function sfxGateOK(){
-  [880,1108,1318,1760].forEach((f,i)=>sfxTone(f,0.14,'triangle',0.4,i*0.05));
-  if (AC){ // シュワッとしたノイズ
-    const t = AC.currentTime;
-    const buf = AC.createBuffer(1, AC.sampleRate*0.3, AC.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
-    const s = AC.createBufferSource(); s.buffer=buf;
-    const f = AC.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(3000,t);
-    f.frequency.exponentialRampToValueAtTime(8000,t+0.25);
-    const g = AC.createGain(); g.gain.value = 0.25;
-    s.connect(f); f.connect(g); g.connect(sfxGain); s.start(t);
-  }
-}
-function sfxFail(){ sfxTone(160,0.35,'sawtooth',0.5,0,90); sfxTone(120,0.35,'square',0.3,0.02,70); }
-function sfxLap(){ [660,880].forEach((f,i)=>sfxTone(f,0.2,'triangle',0.4,i*0.12)); }
-function sfxCount(final){ sfxTone(final?1320:880, final?0.5:0.14, 'square', 0.35); }
-function sfxFinish(){ [523,659,784,1046,1318].forEach((f,i)=>sfxTone(f,0.3,'triangle',0.4,i*0.1)); }
-
-/* =========================================================
-   バーチャルジョイスティック（マルチタッチ）
-========================================================= */
-const stick = {
-  L: { id:null, cx:0, cy:0, x:0, y:0, base:document.getElementById('stick-l'), knob:document.getElementById('knob-l') },
-  R: { id:null, cx:0, cy:0, x:0, y:0, base:document.getElementById('stick-r'), knob:document.getElementById('knob-r') }
-};
-const STICK_RAD = 60;
-function stickStart(s, t){
-  s.id = t.identifier; s.cx = t.clientX; s.cy = t.clientY; s.x = 0; s.y = 0;
-  s.base.style.display = 'block';
-  s.base.style.left = s.cx + 'px'; s.base.style.top = s.cy + 'px';
-  s.knob.style.transform = 'translate(-50%,-50%)';
-}
-function stickMove(s, t){
-  let dx = t.clientX - s.cx, dy = t.clientY - s.cy;
-  const len = Math.hypot(dx, dy);
-  if (len > STICK_RAD){ dx *= STICK_RAD/len; dy *= STICK_RAD/len; }
-  s.x = dx/STICK_RAD; s.y = dy/STICK_RAD;
-  s.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-}
-function stickEnd(s){
-  s.id = null; s.x = 0; s.y = 0; s.base.style.display = 'none';
-}
-canvas.addEventListener('touchstart', e => {
-  initAudio();
-  for (const t of e.changedTouches){
-    if (t.clientX < window.innerWidth/2){ if (stick.L.id === null) stickStart(stick.L, t); }
-    else { if (stick.R.id === null) stickStart(stick.R, t); }
-  }
-}, { passive:false });
-document.addEventListener('touchmove', e => {
-  for (const t of e.changedTouches){
-    if (t.identifier === stick.L.id) stickMove(stick.L, t);
-    if (t.identifier === stick.R.id) stickMove(stick.R, t);
-  }
-}, { passive:false });
-['touchend','touchcancel'].forEach(ev => document.addEventListener(ev, e => {
-  for (const t of e.changedTouches){
-    if (t.identifier === stick.L.id) stickEnd(stick.L);
-    if (t.identifier === stick.R.id) stickEnd(stick.R);
-  }
-}, { passive:false }));
-
-// マウス（PCデバッグ用・簡易）
-let mouseSide = null;
-canvas.addEventListener('mousedown', e => {
-  initAudio();
-  const s = e.clientX < window.innerWidth/2 ? stick.L : stick.R;
-  mouseSide = s;
-  stickStart(s, { identifier:'m', clientX:e.clientX, clientY:e.clientY });
+  return {...d, mesh, takenLap:-1};
 });
-window.addEventListener('mousemove', e => { if (mouseSide) stickMove(mouseSide, { clientX:e.clientX, clientY:e.clientY }); });
-window.addEventListener('mouseup', () => { if (mouseSide){ stickEnd(mouseSide); mouseSide = null; } });
+const bars = BAR_DEFS.map(d=>{
+  samplePos(d.u, _b);
+  const yaw = yawAt(d.u);
+  const cx0 = _b.x, cz0 = _b.z, lx = _b.lx, lz = _b.lz;
+  const base = baseAt(d.u, 0);
+  const grp = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({color:0xe86a5a});
+  const postM = new THREE.MeshLambertMaterial({color:0xbbbbbb});
+  if(d.kind === 'high'){
+    const w = new THREE.Mesh(new THREE.BoxGeometry(LAT_MAX*2+2.4, 6.0, 0.5), mat);
+    w.position.set(cx0, base+3.6+3.0, cz0);
+    w.rotation.y = yaw; grp.add(w);
+  } else if(d.kind === 'low'){
+    const w = new THREE.Mesh(new THREE.BoxGeometry(LAT_MAX*2+2.4, 3.4, 0.5), mat);
+    w.position.set(cx0, base+1.7, cz0);
+    w.rotation.y = yaw; grp.add(w);
+  } else {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(LAT_MAX+2.4, 9.4, 0.5), mat);
+    const off = (LAT_MAX+2.4)/2 - 0.6;
+    w.position.set(cx0+lx*off*d.side, base+4.7, cz0+lz*off*d.side);
+    w.rotation.y = yaw; grp.add(w);
+  }
+  for(const sd of [-1,1]){
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,10.0,8), postM);
+    p.position.set(cx0+lx*(LAT_MAX+1.9)*sd, base+5.0, cz0+lz*(LAT_MAX+1.9)*sd);
+    grp.add(p);
+  }
+  scene.add(grp);
+  return {...d, grp};
+});
+const stars = STAR_DEFS.map(([u,lat,alt])=>{
+  const y = baseAt(u, lat) + alt;
+  samplePos(u, _b);
+  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.5),
+    new THREE.MeshLambertMaterial({color:0xffd94a, emissive:0x9a7a10}));
+  mesh.position.set(_b.x+_b.lx*lat, y, _b.z+_b.lz*lat);
+  scene.add(mesh);
+  return {u, lat, alt, mesh, taken:false};
+});
+const windArrows = [];
+for(const w of WIND_DEFS){
+  const segs = 7;
+  for(let i=0;i<=segs;i++){
+    const u = w.a + (w.b-w.a)*i/segs;
+    samplePos(u, _b);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(LAT_MAX*2+3, 5.6),
+      new THREE.MeshBasicMaterial({color:0x9adfff, transparent:true, opacity:0.14, side:THREE.DoubleSide, depthWrite:false}));
+    plane.position.set(_b.x, baseAt(u,0)+3.4, _b.z);
+    plane.rotation.y = yawAt(u);
+    scene.add(plane);
+  }
+  for(let i=0;i<8;i++){
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({color:0xffffff, transparent:true, opacity:0.5}));
+    sp.scale.set(0.7, 0.25, 1);
+    const u = w.a + Math.random()*(w.b-w.a);
+    windArrows.push({sp, zone:w, u, lat:(Math.random()*2-1)*LAT_MAX, alt:1.5+Math.random()*3.5});
+    scene.add(sp);
+  }
+}
 
-/* =========================================================
-   ゲーム状態
-========================================================= */
-const S = {
-  phase: 'menu',       // menu / countdown / race / finished
-  mode: 'normal',
-  lap: 1,
-  seqIdx: 0,
-  raceTime: 0,
-  lapStart: 0,
-  laps: [],
-  score: 0,
-  combo: 0,
-  yaw: 0,
-  vel: new THREE.Vector3(),
-  vy: 0,
-  yawVel: 0,
-  countdown: 0,
-  prevSide: 0,         // ゲート平面のどちら側にいたか
-  prevPos: new THREE.Vector3(), // 前フレームのドローン位置（線分判定用）
-  hasPrev: false,      // prevPosが有効か
-  speedPreset: 'normal',  // ゆっくり/ふつう/はやい（プレイヤー選択）
-  difficultyMult: 1,      // チャレンジモードの周回加速（既存のspeedMult相当）
-  speedMult: 1             // 上記2つを掛け合わせた実効速度倍率（毎フレーム更新）
+// ===== プレイヤー(自由飛行) =====
+const pv = buildDrone(0xffb63b, 0xeeeeee);
+const player = {
+  x:0, y:0, z:0, yaw:0, yawRate:0,
+  vel:{x:0,y:0,z:0},
+  u:0, prevU:0, lat:0, alt:2.0,
+  lap:0, cp:false, finished:false,
+  boostT:0, boostMult:1, hitCool:0, wobble:0,
+  ringCount:0, starCount:0, finalStreak:0,
+  pitch:0, roll:0, inWind:false,
 };
+const START_SAMPLE_I = N-8;
 
-const el = {
-  time: document.getElementById('time-val'),
-  lap: document.getElementById('lap-val'),
-  score: document.getElementById('score-val'),
-  combo: document.getElementById('combo-pop'),
-  msg: document.getElementById('msg-pop'),
-  flash: document.getElementById('flash-red'),
-  menu: document.getElementById('menu-overlay'),
-  result: document.getElementById('result-overlay')
-};
+// ===== 状態 =====
+let state = 'title', raceTime = 0, countT = 0, lastCount = -1;
+let firstCam = true;
 
+// 自己ベスト
+const BEST_KEY_PREFIX = 'piyoDroneSkyAttackFreeBest_';
+function loadBest(){ try{ const v = parseFloat(localStorage.getItem(BEST_KEY_PREFIX+speedKey)); return isFinite(v)?v:null; }catch(e){ return null; } }
+function saveBest(t){ try{ localStorage.setItem(BEST_KEY_PREFIX+speedKey, String(t)); }catch(e){} }
+
+function placeRacer(){
+  const s = samples[START_SAMPLE_I];
+  const u0 = s.u;
+  player.x = s.pos.x;
+  player.z = s.pos.z;
+  player.y = baseAt(u0, 0) + 2.0;
+  player.yaw = yawAt(u0);
+  player.yawRate = 0;
+  player.vel.x = 0; player.vel.y = 0; player.vel.z = 0;
+  player.u = u0; player.prevU = u0; player.lat = 0; player.alt = 2.0;
+  player.lap = 0; player.cp = false; player.finished = false;
+  player.boostT = 0; player.boostMult = 1; player.hitCool = 0; player.wobble = 0;
+  player.ringCount = 0; player.starCount = 0; player.finalStreak = 0;
+  player.pitch = 0; player.roll = 0; player.inWind = false;
+  for(const r of rings){ r.takenLap = -1; }
+  for(const s2 of stars){ s2.taken = false; s2.mesh.visible = true; }
+}
+function resetRace(){
+  placeRacer();
+  raceTime = 0;
+  document.getElementById('resultOv').classList.add('hidden');
+  state = 'count'; countT = 3.4; lastCount = 99;
+}
+placeRacer();
+
+// ===== 仮想スティック(実機ドローンプロポ方式・マルチタッチ対応) =====
+function makeStick(zoneEl, knobEl){
+  const st = { x:0, y:0, touchId:null, zoneEl, knobEl };
+  const R = 62;
+  function setFromEvent(clientX, clientY){
+    const rect = zoneEl.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    let dx = clientX - cx, dy = clientY - cy;
+    const len = Math.hypot(dx, dy);
+    if(len > R){ dx *= R/len; dy *= R/len; }
+    st.x = dx / R;
+    st.y = -dy / R;
+    knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+  function reset(){
+    st.x = 0; st.y = 0; st.touchId = null;
+    knobEl.style.transform = 'translate(0px, 0px)';
+  }
+  zoneEl.addEventListener('touchstart', (e)=>{
+    e.preventDefault();
+    if(st.touchId !== null) return;
+    const t = e.changedTouches[0];
+    st.touchId = t.identifier;
+    setFromEvent(t.clientX, t.clientY);
+  }, {passive:false});
+  document.addEventListener('touchmove', (e)=>{
+    for(const t of e.changedTouches){ if(t.identifier === st.touchId) setFromEvent(t.clientX, t.clientY); }
+  }, {passive:false});
+  document.addEventListener('touchend', (e)=>{
+    for(const t of e.changedTouches){ if(t.identifier === st.touchId) reset(); }
+  });
+  document.addEventListener('touchcancel', (e)=>{
+    for(const t of e.changedTouches){ if(t.identifier === st.touchId) reset(); }
+  });
+  // マウス(PC確認用)
+  zoneEl.addEventListener('mousedown', (e)=>{
+    st.touchId = 'mouse';
+    setFromEvent(e.clientX, e.clientY);
+    const mv = (ev)=>{ if(st.touchId === 'mouse') setFromEvent(ev.clientX, ev.clientY); };
+    const up = ()=>{ reset(); document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', mv);
+    document.addEventListener('mouseup', up);
+  });
+  st.reset = reset;
+  return st;
+}
+const stickL = makeStick(document.getElementById('stickL'), document.getElementById('knobL'));
+const stickR = makeStick(document.getElementById('stickR'), document.getElementById('knobR'));
+function setSticksVisible(on){
+  document.getElementById('stickL').style.display = on ? 'block' : 'none';
+  document.getElementById('stickR').style.display = on ? 'block' : 'none';
+}
+
+// キーボード操作(PC確認用): 矢印キー=右スティック、Q/E=せんかい、W/S=たかさ
+const kb = {left:false,right:false,up:false,down:false,q:false,e:false,w:false,s:false};
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'){ kb.left=true; e.preventDefault(); }
+  if(e.key==='ArrowRight'){ kb.right=true; e.preventDefault(); }
+  if(e.key==='ArrowUp'){ kb.up=true; e.preventDefault(); }
+  if(e.key==='ArrowDown'){ kb.down=true; e.preventDefault(); }
+  if(e.key==='q'||e.key==='Q') kb.q=true;
+  if(e.key==='e'||e.key==='E') kb.e=true;
+  if(e.key==='w'||e.key==='W') kb.w=true;
+  if(e.key==='s'||e.key==='S') kb.s=true;
+});
+window.addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft') kb.left=false;
+  if(e.key==='ArrowRight') kb.right=false;
+  if(e.key==='ArrowUp') kb.up=false;
+  if(e.key==='ArrowDown') kb.down=false;
+  if(e.key==='q'||e.key==='Q') kb.q=false;
+  if(e.key==='e'||e.key==='E') kb.e=false;
+  if(e.key==='w'||e.key==='W') kb.w=false;
+  if(e.key==='s'||e.key==='S') kb.s=false;
+});
+
+// ===== iPad Safariのジェスチャー無効化(ダブルタップ拡大の防止) =====
+document.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e=>{
+  const now = Date.now();
+  if(now - lastTouchEnd < 350) e.preventDefault();
+  lastTouchEnd = now;
+}, {passive:false});
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('gesturechange', e=>e.preventDefault());
+document.addEventListener('gestureend', e=>e.preventDefault());
+document.addEventListener('dblclick', e=>e.preventDefault());
+document.addEventListener('contextmenu', e=>e.preventDefault());
+
+// ===== ポップアップ =====
+const popupEl = document.getElementById('popup');
+let popTimer = null;
+function popup(txt){
+  popupEl.textContent = txt;
+  popupEl.classList.add('show');
+  clearTimeout(popTimer);
+  popTimer = setTimeout(()=>popupEl.classList.remove('show'), 1300);
+}
+
+// ===== 飛行制御(実機ドローン方式) =====
+function updateFlight(dt, racing){
+  const lStickX = kb.left||kb.right ? ((kb.left?1:0)-(kb.right?1:0)) : stickL.x;
+  const lStickY = kb.w||kb.s ? ((kb.w?1:0)-(kb.s?1:0)) : stickL.y;
+  const rStickX = kb.q||kb.e ? ((kb.e?1:0)-(kb.q?1:0)) : stickR.x;
+  const rStickY = kb.up||kb.down ? ((kb.up?1:0)-(kb.down?1:0)) : stickR.y;
+
+  {
+    const targetYawRate = racing ? -lStickX * YAW_SPEED : 0;
+    const yk = 1 - Math.exp(-YAW_ACCEL*dt);
+    player.yawRate += (targetYawRate - player.yawRate) * yk;
+    if(racing) player.yaw += player.yawRate * dt;
+    else player.yawRate *= Math.exp(-4*dt);
+  }
+  let tvx = 0, tvy = 0, tvz = 0;
+  if(racing){
+    tvy = lStickY * V_SPEED;
+    const boost = player.boostT > 0 ? player.boostMult : 1;
+    const lx = rStickX * H_SPEED * boost;   // 左右(ロール/ストレイフ)
+    const lz = rStickY * H_SPEED * boost;   // 前後(ピッチ)
+    tvx = lz*Math.sin(player.yaw) - lx*Math.cos(player.yaw);
+    tvz = lz*Math.cos(player.yaw) + lx*Math.sin(player.yaw);
+  }
+  const k = 1 - Math.exp(-ACCEL*dt);
+  player.vel.x += (tvx - player.vel.x) * k;
+  player.vel.y += (tvy - player.vel.y) * k;
+  player.vel.z += (tvz - player.vel.z) * k;
+  if(!racing){
+    // レース中でない時はゆっくり静止(ふわっと止まる)
+    const damp = Math.exp(-3*dt);
+    player.vel.x *= damp; player.vel.y *= damp; player.vel.z *= damp;
+  }
+  player.x += player.vel.x * dt;
+  player.y += player.vel.y * dt;
+  player.z += player.vel.z * dt;
+
+  // 地面・天井クランプ(地形にめりこまない/上がりすぎない)
+  const floorY = terrainH(player.x, player.z) + grassBump(player.x, player.z) + FLOOR_MARGIN;
+  if(player.y < floorY){ player.y = floorY; if(player.vel.y < 0) player.vel.y = 0; }
+  const ceilY = floorY + 42;
+  if(player.y > ceilY){ player.y = ceilY; if(player.vel.y > 0) player.vel.y = 0; }
+}
+
+// ===== プレイヤー更新 =====
+function updatePlayer(dt, t){
+  const racing = state === 'race' && !player.finished;
+  updateFlight(dt, racing);
+
+  const info = nearestTrackInfo(player.x, player.z);
+  player.prevU = player.u;
+  player.u = info.u;
+  player.lat = info.lat;
+  player.alt = player.y - info.base;
+
+  // 風ゾーン
+  let inWind = false;
+  if(racing){
+    for(const w of WIND_DEFS){
+      if(uDiff(player.u, w.a) >= 0 && uDiff(w.b, player.u) >= 0){
+        player.x += info.lx * w.push * dt;
+        player.z += info.lz * w.push * dt;
+        inWind = true;
+      }
+    }
+  }
+  if(inWind && !player.inWind) popup('💨 かぜに ながされる！');
+  player.inWind = inWind;
+
+  if(player.boostT > 0){ player.boostT -= dt; if(player.boostT <= 0) player.boostMult = 1; }
+  if(player.hitCool > 0) player.hitCool -= dt;
+  if(player.wobble > 0) player.wobble = Math.max(0, player.wobble - dt*1.4);
+
+  if(racing){
+    // リング
+    for(const r of rings){
+      if(r.takenLap === player.lap) continue;
+      const dx = player.x - r.mesh.position.x, dy = player.y - r.mesh.position.y, dz = player.z - r.mesh.position.z;
+      if(dx*dx+dy*dy+dz*dz < RING_PICK_R*RING_PICK_R){
+        r.takenLap = player.lap;
+        player.ringCount++;
+        player.boostT = RING_BOOST_T; player.boostMult = RING_BOOST_MULT;
+        if(r.final){
+          player.finalStreak++;
+          if(player.finalStreak >= 3){
+            player.boostT = FINISH_BOOST_T; player.boostMult = FINISH_BOOST_MULT;
+            popup('🔥 フィニッシュブースト！！');
+          } else popup('✨ あと'+(3-player.finalStreak)+'つ！');
+        } else popup('✨ リングボーナス！');
+      }
+    }
+    // かべ(コース沿いの範囲内にいるかで判定)
+    for(const b of bars){
+      if(player.hitCool > 0) continue;
+      if(Math.abs(uDiff(player.u, b.u)) > HIT_WINDOW_U) continue;
+      let hit = false;
+      if(b.kind === 'high') hit = player.alt > 3.6;
+      else if(b.kind === 'low') hit = player.alt < 3.4;
+      else hit = player.lat * b.side > -0.6;
+      if(hit){
+        player.vel.x *= HIT_SLOW; player.vel.y *= HIT_SLOW; player.vel.z *= HIT_SLOW;
+        player.hitCool = HIT_COOL;
+        player.wobble = 1;
+        player.finalStreak = 0;
+        popup('💥 ぶつかった！');
+      }
+    }
+    // スター
+    for(const s of stars){
+      if(s.taken) continue;
+      const dx = player.x - s.mesh.position.x, dy = player.y - s.mesh.position.y, dz = player.z - s.mesh.position.z;
+      if(dx*dx+dy*dy+dz*dz < STAR_PICK_R*STAR_PICK_R){
+        s.taken = true;
+        s.mesh.visible = false;
+        player.starCount++;
+        popup('⭐ スター '+player.starCount+'こ！');
+      }
+    }
+    // ラップ判定
+    if(player.u > 0.45 && player.u < 0.6) player.cp = true;
+    if(player.prevU > 0.9 && player.u < 0.1 && player.cp){
+      player.lap++;
+      player.cp = false;
+      player.finalStreak = 0;
+      if(player.lap >= 3) finishPlayer();
+      else popup('ラップ '+(player.lap+1)+'/3！');
+    }
+  }
+
+  // 見た目の姿勢(実機ドローンらしい前傾・バンク)
+  const lStickX = kb.left||kb.right ? ((kb.left?1:0)-(kb.right?1:0)) : stickL.x;
+  const rStickX = kb.q||kb.e ? ((kb.e?1:0)-(kb.q?1:0)) : stickR.x;
+  const rStickY = kb.up||kb.down ? ((kb.up?1:0)-(kb.down?1:0)) : stickR.y;
+  const shake = player.wobble>0 ? Math.sin(t*30)*player.wobble*0.45 : 0;
+  const targetPitch = racing ? -rStickY*0.32 : 0;
+  const targetRoll = racing ? -rStickX*0.36 : 0;
+  player.pitch = lerp(player.pitch, targetPitch, 1-Math.exp(-8*dt));
+  player.roll = lerp(player.roll, targetRoll, 1-Math.exp(-8*dt));
+
+  const bob = BOB_AMP*Math.sin(t*2.1);
+  const g = pv.group;
+  g.position.set(player.x, player.y + (racing?0:bob), player.z);
+  g.rotation.y = player.yaw;
+  g.rotation.x = player.pitch;
+  g.rotation.z = player.roll + shake;
+  const spinSpeed = Math.hypot(player.vel.x, player.vel.y, player.vel.z);
+  const spin = (26 + spinSpeed*1.3)*dt;
+  for(let i=0;i<pv.props.length;i++) pv.props[i].rotation.y += spin*(i%2===0?1:-1);
+  pv.shadow.position.set(player.x, terrainH(player.x,player.z)+grassBump(player.x,player.z)+0.06, player.z);
+  pv.shadow.material.opacity = 0.3*clamp(1-player.alt*0.1, 0.12, 1);
+}
+
+// ===== ゴール =====
+function finishPlayer(){
+  player.finished = true;
+  state = 'finished';
+  const best = loadBest();
+  const isBest = best===null || raceTime < best;
+  if(isBest) saveBest(raceTime);
+  document.getElementById('resTimeBig').textContent = fmtTime(raceTime);
+  document.getElementById('resBest').textContent = isBest ? '🎉 自己ベスト更新！' : (SPEED_PRESETS[speedKey].label+'の自己ベスト '+fmtTime(best));
+  document.getElementById('resStar').textContent = '⭐ '+player.starCount+'こ / '+stars.length+'こ';
+  document.getElementById('resRing').textContent = '✨ リング '+player.ringCount+'回';
+  setSticksVisible(false);
+  setTimeout(()=>document.getElementById('resultOv').classList.remove('hidden'), 900);
+}
 function fmtTime(t){
-  const m = Math.floor(t/60), s = t - m*60;
-  return `${m}:${s.toFixed(1).padStart(4,'0')}`;
-}
-function bestKey(){ return 'droneGP_best_' + S.mode; }
-function loadBest(mode){
-  try { const v = localStorage.getItem('droneGP_best_' + mode); return v ? parseFloat(v) : null; }
-  catch(e){ return null; }
-}
-function saveBest(v){
-  try { localStorage.setItem(bestKey(), String(v)); } catch(e){}
-}
-function refreshMenuBest(){
-  const n = loadBest('normal'), c = loadBest('challenge');
-  document.getElementById('best-normal').textContent = 'ベスト：' + (n ? fmtTime(n) : '--:--.-');
-  document.getElementById('best-challenge').textContent = 'ベスト：' + (c ? fmtTime(c) : '--:--.-');
-}
-refreshMenuBest();
-
-let msgTimer = null;
-function showMsg(text, dur = 1.2){
-  el.msg.textContent = text;
-  el.msg.classList.add('show');
-  if (msgTimer) clearTimeout(msgTimer);
-  msgTimer = setTimeout(() => el.msg.classList.remove('show'), dur*1000);
-}
-let comboTimer = null;
-function showCombo(gainedPts){
-  const mult = comboMult();
-  el.combo.innerHTML = S.combo >= 2
-    ? `${S.combo} コンボ！<div class="sub">スコア ×${mult.toFixed(1)}</div><span class="pts">+${gainedPts}</span>`
-    : `ナイス！<span class="pts">+${gainedPts}</span>`;
-  el.combo.classList.add('show');
-  if (comboTimer) clearTimeout(comboTimer);
-  comboTimer = setTimeout(() => el.combo.classList.remove('show'), 900);
-}
-function comboMult(){ return Math.min(3, 1 + S.combo*0.1); }
-
-// ワールド座標→スクリーン座標の飛び出しスコア表示
-function showFloatingScore(worldPos, text, isGate){
-  const v = worldPos.clone().project(camera);
-  if (v.z > 1) return; // カメラ後方は表示しない
-  const x = (v.x * 0.5 + 0.5) * window.innerWidth;
-  const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
-  const d = document.createElement('div');
-  d.className = 'float-pts' + (isGate ? ' gate' : '');
-  d.textContent = text;
-  d.style.left = x + 'px';
-  d.style.top = y + 'px';
-  document.getElementById('hud').appendChild(d);
-  setTimeout(() => d.remove(), 950);
+  const m = Math.floor(t/60), s = Math.floor(t%60), c = Math.floor((t*100)%100);
+  return m+':'+String(s).padStart(2,'0')+'.'+String(c).padStart(2,'0');
 }
 
-function updateWaypointVisual(){
-  waypoints.forEach((w, i) => {
-    const isNext = (i === S.seqIdx);
-    const done = (i < S.seqIdx);
-    w.mesh.traverse(o => {
-      if (o.material){
-        o.material.transparent = true;
-        o.material.opacity = isNext ? 1.0 : (done ? 0.12 : 0.32);
-      }
-    });
-    w.mesh.visible = !(done && w.type === 'item');
+// ===== ミニマップ =====
+const mmC = document.getElementById('mm').getContext('2d');
+let mmPts = null, mmB = null;
+{
+  let minX=1e9, maxX=-1e9, minZ=1e9, maxZ=-1e9;
+  for(const s of samples){
+    minX = Math.min(minX, s.pos.x); maxX = Math.max(maxX, s.pos.x);
+    minZ = Math.min(minZ, s.pos.z); maxZ = Math.max(maxZ, s.pos.z);
+  }
+  const pad = 14, W = 220;
+  const sc = Math.min((W-pad*2)/(maxX-minX), (W-pad*2)/(maxZ-minZ));
+  mmB = {minX, minZ, sc, pad};
+  mmPts = samples.filter((_,i)=>i%8===0).map(s=>[pad+(s.pos.x-minX)*sc, pad+(s.pos.z-minZ)*sc]);
+}
+function mmXY(x, z){ return [mmB.pad+(x-mmB.minX)*mmB.sc, mmB.pad+(z-mmB.minZ)*mmB.sc]; }
+function drawMM(){
+  mmC.clearRect(0, 0, 220, 220);
+  mmC.beginPath();
+  mmPts.forEach((p,i)=>{ if(i===0) mmC.moveTo(p[0],p[1]); else mmC.lineTo(p[0],p[1]); });
+  mmC.closePath();
+  mmC.lineWidth = 8; mmC.strokeStyle = 'rgba(0,0,0,0.35)'; mmC.stroke();
+  mmC.lineWidth = 4.5; mmC.strokeStyle = '#7ab0e8'; mmC.stroke();
+  const [px, py] = mmXY(player.x, player.z);
+  mmC.fillStyle = '#fff';
+  mmC.beginPath(); mmC.arc(px, py, 7.5, 0, 6.284); mmC.fill();
+  mmC.fillStyle = '#ffb63b';
+  mmC.beginPath(); mmC.arc(px, py, 4.5, 0, 6.284); mmC.fill();
+}
+
+// ===== カメラ(実機ドローンの操縦者視点=後方追従) =====
+const camPos = new THREE.Vector3();
+const camLook = new THREE.Vector3();
+function updateCamera(dt){
+  if(state === 'title'){
+    const t = performance.now()*0.001;
+    const ang = t*0.08;
+    camera.position.set(Math.sin(ang)*140, 60, Math.cos(ang)*140);
+    camera.lookAt(0, 0, 0);
+    return;
+  }
+  const backX = -Math.sin(player.yaw), backZ = -Math.cos(player.yaw);
+  const tx = player.x + backX*8.6, tz = player.z + backZ*8.6;
+  const gh = terrainH(tx,tz)+grassBump(tx,tz);
+  const ty = Math.max(player.y+3.2, gh+1.6);
+  if(firstCam){
+    camera.position.set(tx, ty, tz);
+    firstCam = false;
+  } else {
+    const k = 1-Math.exp(-5*dt);
+    camera.position.x += (tx-camera.position.x)*k;
+    camera.position.y += (ty-camera.position.y)*k;
+    camera.position.z += (tz-camera.position.z)*k;
+  }
+  camLook.set(player.x - backX*5, player.y+1.0, player.z - backZ*5);
+  camera.lookAt(camLook);
+}
+
+// ===== HUD =====
+const lapEl = document.getElementById('lapEl');
+const timeEl = document.getElementById('timeEl');
+const starEl = document.getElementById('starEl');
+const spdEl = document.getElementById('spd');
+function updateHUD(){
+  lapEl.textContent = 'LAP '+Math.min(player.lap+1, 3)+'/3';
+  timeEl.textContent = fmtTime(raceTime);
+  starEl.textContent = '⭐'+player.starCount;
+  const spd = Math.hypot(player.vel.x, player.vel.y, player.vel.z);
+  spdEl.textContent = Math.round(spd*3.6)+' km/h';
+}
+
+// ===== 速度選択 & 開始ボタン =====
+function showTitleBest(){
+  const best = loadBest();
+  const label = SPEED_PRESETS[speedKey].label;
+  document.getElementById('titleBest').textContent = best!==null ? label+'の自己ベスト '+fmtTime(best) : '';
+}
+function updateSpeedButtons(){
+  document.querySelectorAll('.speedBtn').forEach(b=>{
+    b.classList.toggle('sel', b.dataset.speed === speedKey);
   });
 }
-
-function resetRace(mode){
-  S.mode = mode;
-  S.phase = 'countdown';
-  S.lap = 1; S.seqIdx = 0;
-  S.raceTime = 0; S.lapStart = 0; S.laps = [];
-  S.score = 0; S.combo = 0;
-  S.yaw = 0; S.vel.set(0,0,0); S.vy = 0; S.yawVel = 0;
-  S.countdown = 3.6;
-  S.difficultyMult = 1;
-  S.speedMult = SPEED_PRESETS[S.speedPreset];
-  const p0 = coursePoint(0);
-  const tan0 = courseTangent(0);
-  droneBody.position.set(p0.x - 6, HOVER_H + 0.6, p0.z);
-  droneBody.velocity.set(0,0,0);
-  S.yaw = Math.atan2(-tan0.x, -tan0.z) + Math.PI; // 進行方向を向く
-  S.prevSide = 0;
-  S.hasPrev = false;
-  updateWaypointVisual();
-  el.menu.classList.add('hidden');
-  el.result.classList.add('hidden');
-  el.lap.textContent = `1/${TOTAL_LAPS}`;
-  el.score.textContent = '0';
-  countPlayed = [false,false,false,false];
-}
-
-let countPlayed = [false,false,false,false];
-
-document.querySelectorAll('.speed-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    S.speedPreset = btn.dataset.speed;
-    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
+document.querySelectorAll('.speedBtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    applySpeedPreset(btn.dataset.speed);
+    updateSpeedButtons();
+    showTitleBest();
   });
 });
-document.getElementById('btn-normal').addEventListener('click', () => { initAudio(); resetRace('normal'); });
-document.getElementById('btn-challenge').addEventListener('click', () => { initAudio(); resetRace('challenge'); });
-document.getElementById('btn-retry').addEventListener('click', () => resetRace(S.mode));
-document.getElementById('btn-menu').addEventListener('click', () => {
-  el.result.classList.add('hidden');
-  el.menu.classList.remove('hidden');
-  refreshMenuBest();
-  S.phase = 'menu';
+applySpeedPreset('fast');
+updateSpeedButtons();
+showTitleBest();
+document.getElementById('btnStart').addEventListener('click', ()=>{
+  document.getElementById('titleOv').classList.add('hidden');
+  setSticksVisible(true);
+  resetRace();
+  firstCam = true;
+});
+document.getElementById('btnAgain').addEventListener('click', ()=>{
+  setSticksVisible(true);
+  resetRace();
+  firstCam = true;
 });
 
-/* =========================================================
-   ウェイポイント判定
-========================================================= */
-function advanceSeq(){
-  S.seqIdx++;
-  if (S.seqIdx >= SEQ_N){
-    // ラップ完了
-    const split = S.raceTime - S.lapStart;
-    S.laps.push(split);
-    S.lapStart = S.raceTime;
-    if (S.lap >= TOTAL_LAPS){
-      finishRace();
-      return;
-    }
-    S.lap++;
-    S.seqIdx = 0;
-    if (S.mode === 'challenge'){
-      S.difficultyMult = 1 + CHALLENGE_STEP * (S.lap - 1);
-      showMsg(`ラップ ${S.lap}！ スピードアップ！🔥`, 1.6);
-    } else {
-      showMsg(`ラップ ${S.lap}！`, 1.4);
-    }
-    S.speedMult = SPEED_PRESETS[S.speedPreset] * S.difficultyMult;
-    sfxLap();
-    el.lap.textContent = `${S.lap}/${TOTAL_LAPS}`;
-  }
-  S.prevSide = 0;
-  S.hasPrev = false; // 新ターゲットに切り替わった瞬間の誤判定を防ぐ
-  updateWaypointVisual();
-}
-
-function checkWaypoint(dt){
-  const w = waypoints[S.seqIdx];
-  if (!w) return;
-  const curr = new THREE.Vector3(droneBody.position.x, droneBody.position.y, droneBody.position.z);
-  const prev = S.hasPrev ? S.prevPos.clone() : curr.clone();
-
-  if (w.type === 'item'){
-    // 前フレーム位置と現在位置を結ぶ線分と、アイテム中心との最短距離で判定（高速でもすり抜けない）
-    const seg = curr.clone().sub(prev);
-    const segLen2 = seg.lengthSq();
-    let dist;
-    if (segLen2 < 1e-6){
-      dist = curr.distanceTo(w.pos);
-    } else {
-      let t = w.pos.clone().sub(prev).dot(seg) / segLen2;
-      t = Math.max(0, Math.min(1, t));
-      const closest = prev.clone().addScaledVector(seg, t);
-      dist = closest.distanceTo(w.pos);
-    }
-    if (dist < 2.8){
-      S.combo++;
-      const gained = Math.round((w.bonus ? 200 : 100) * comboMult());
-      S.score += gained;
-      el.score.textContent = String(S.score);
-      burst(w.pos, w.bonus ? 0xff9df0 : 0xffd54a, w.bonus ? 40 : 28, w.bonus ? 10 : 7);
-      sfxItem();
-      showCombo(gained);
-      showFloatingScore(w.pos, `+${gained}`, false);
-      advanceSeq();
-    }
-  } else {
-    // ゲート：前フレーム位置と現在位置を結ぶ線分がゲート平面を横断するかで判定（トンネリング対策）
-    const alongPrev = prev.clone().sub(w.pos).dot(w.normal);
-    const alongCurr = curr.clone().sub(w.pos).dot(w.normal);
-    // 手前(負)から奥(正)へ、またはどちら向きでも符号が変わったら横断とみなす
-    if (alongPrev < 0 && alongCurr >= 0 && (alongCurr - alongPrev) > 1e-4){
-      const tt = alongPrev / (alongPrev - alongCurr); // 平面との交差点パラメータ 0..1
-      const cross = prev.clone().addScaledVector(curr.clone().sub(prev), tt);
-      const relC = cross.clone().sub(w.pos);
-      const alongC = relC.dot(w.normal);
-      const radial = relC.clone().addScaledVector(w.normal, -alongC).length();
-      if (radial < GATE_R + 0.2){
-        // 成功
-        S.combo++;
-        const gained = Math.round(150 * comboMult());
-        S.score += gained;
-        el.score.textContent = String(S.score);
-        burst(w.pos, 0x38d9ff, 46, 10);
-        sfxGateOK();
-        showCombo(gained);
-        showFloatingScore(w.pos, `+${gained}`, true);
-        advanceSeq();
-        return;
-      } else if (radial < GATE_R * GATE_NEAR){
-        // ニアミス失敗：ペナルティして次へ
-        S.combo = 0;
-        S.raceTime += PENALTY_SEC;
-        el.flash.classList.add('show');
-        setTimeout(() => el.flash.classList.remove('show'), 120);
-        sfxFail();
-        showMsg(`ゲートしっぱい… +${PENALTY_SEC}びょう`, 1.4);
-        advanceSeq();
-        return;
+// ===== メインループ =====
+const clock = new THREE.Clock();
+const cdEl = document.getElementById('cd');
+function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 1/30); // 120Hz iPad対応クランプ
+  const t = clock.elapsedTime;
+  if(state === 'count'){
+    countT -= dt;
+    const n = Math.ceil(countT);
+    if(n !== lastCount){
+      lastCount = n;
+      if(n > 0) cdEl.textContent = n;
+      else {
+        cdEl.textContent = 'GO!';
+        state = 'race';
+        setTimeout(()=>{ cdEl.textContent = ''; }, 700);
       }
     }
   }
-}
-
-function finishRace(){
-  S.phase = 'finished';
-  sfxFinish();
-  burst(new THREE.Vector3(droneBody.position.x, droneBody.position.y, droneBody.position.z), 0xff9df0, 50, 9);
-  const total = S.raceTime;
-  const best = loadBest(S.mode);
-  const isNew = (best === null || total < best);
-  if (isNew) saveBest(total);
-
-  document.getElementById('result-mode').textContent =
-    S.mode === 'normal' ? '🏁 ノーマルモード' : '🔥 チャレンジモード';
-  const rows = document.getElementById('lap-rows');
-  rows.innerHTML = '';
-  S.laps.forEach((l, i) => {
-    const d = document.createElement('div');
-    d.className = 'lap-row';
-    d.innerHTML = `<span>ラップ ${i+1}</span><span>${fmtTime(l)}</span>`;
-    rows.appendChild(d);
-  });
-  const tot = document.createElement('div');
-  tot.className = 'lap-row total';
-  tot.innerHTML = `<span>ごうけい</span><span>${fmtTime(total)}</span>`;
-  rows.appendChild(tot);
-  document.getElementById('result-score').textContent = `スコア：${S.score}`;
-  document.getElementById('result-best').textContent =
-    'ベストタイム：' + fmtTime(isNew ? total : best);
-  document.getElementById('new-record').style.display = isNew ? 'block' : 'none';
-  setTimeout(() => el.result.classList.remove('hidden'), 900);
-}
-
-/* =========================================================
-   ミニマップ
-========================================================= */
-const mmCanvas = document.getElementById('minimap');
-const mm = mmCanvas.getContext('2d');
-function drawMinimap(){
-  const W = mmCanvas.width, H = mmCanvas.height;
-  mm.clearRect(0, 0, W, H);
-  const sc = Math.min((W-40)/(AREA_X*2), (H-40)/(AREA_Z*2));
-  const px = (x, z) => [W/2 + x*sc, H/2 + z*sc];
-  // コース
-  mm.strokeStyle = 'rgba(160,220,255,.5)'; mm.lineWidth = 3;
-  mm.beginPath();
-  for (let i = 0; i <= 60; i++){
-    const p = coursePoint(i/60);
-    const [x, y] = px(p.x, p.z);
-    i ? mm.lineTo(x, y) : mm.moveTo(x, y);
+  if(state === 'race') raceTime += dt;
+  updatePlayer(dt, t);
+  for(const r of rings){
+    const active = r.takenLap !== player.lap;
+    r.mesh.visible = true;
+    const sc = active ? 1 + 0.06*Math.sin(t*4 + r.u*40) : 0.55;
+    r.mesh.scale.set(sc, sc, sc);
   }
-  mm.closePath(); mm.stroke();
-  // 中央タワー
-  mm.fillStyle = '#ffd54a';
-  const [tx, ty] = px(0, 0);
-  mm.fillRect(tx-4, ty-4, 8, 8);
-  // ウェイポイント
-  waypoints.forEach((w, i) => {
-    if (i < S.seqIdx && w.type === 'item') return;
-    const [x, y] = px(w.pos.x, w.pos.z);
-    if (i === S.seqIdx){
-      mm.fillStyle = w.type === 'gate' ? '#38d9ff' : '#ffe45c';
-      mm.beginPath(); mm.arc(x, y, 8, 0, Math.PI*2); mm.fill();
-      mm.strokeStyle = '#fff'; mm.lineWidth = 2;
-      mm.beginPath(); mm.arc(x, y, 11, 0, Math.PI*2); mm.stroke();
-    } else {
-      mm.fillStyle = w.type === 'gate' ? 'rgba(56,217,255,.45)' : 'rgba(255,213,74,.45)';
-      mm.beginPath(); mm.arc(x, y, 4.5, 0, Math.PI*2); mm.fill();
-    }
-  });
-  // ドローン（三角）
-  const [dx, dy] = px(droneBody.position.x, droneBody.position.z);
-  mm.save();
-  mm.translate(dx, dy);
-  mm.rotate(-S.yaw);
-  mm.fillStyle = '#ff6bd6';
-  mm.beginPath();
-  mm.moveTo(0, -11); mm.lineTo(7, 8); mm.lineTo(-7, 8);
-  mm.closePath(); mm.fill();
-  mm.restore();
-}
-
-/* =========================================================
-   メインループ
-========================================================= */
-let lastT = performance.now();
-let elapsed = 0;
-
-function tick(){
-  requestAnimationFrame(tick);
-  const now = performance.now();
-  let dt = (now - lastT) / 1000;
-  lastT = now;
-  dt = Math.min(dt, 1/30);   // 120Hz iPad対策：クランプ
-  elapsed += dt;
-
-  const racing = S.phase === 'race';
-  const controllable = racing;
-
-  // ---- カウントダウン ----
-  if (S.phase === 'countdown'){
-    S.countdown -= dt;
-    const c = Math.ceil(S.countdown - 0.6);
-    if (S.countdown > 0.6){
-      if (c >= 1 && c <= 3){
-        showMsg(String(c), 0.8);
-        if (!countPlayed[c]){ countPlayed[c] = true; sfxCount(false); }
-      }
-    } else if (S.countdown > 0){
-      if (!countPlayed[0]){ countPlayed[0] = true; sfxCount(true); showMsg('スタート！', 1.0); }
-    } else {
-      S.phase = 'race';
-    }
+  for(const s of stars){
+    if(!s.taken){ s.mesh.rotation.y += dt*2.2; s.mesh.rotation.x = 0.6; }
   }
-
-  // ---- 操作 → 速度 ----
-  const spd = S.speedMult;
-  const targetYawVel = controllable ? -stick.L.x * YAW_MAX : 0;
-  const targetVy     = controllable ? -stick.L.y * VZ_MAX * Math.min(spd, 2.0) : 0;
-  const fwd = controllable ? -stick.R.y * VH_MAX * spd : 0;
-  const strafe = controllable ? stick.R.x * VH_MAX * spd : 0;
-
-  const k = Math.min(1, ACCEL * dt);
-  S.yawVel += (targetYawVel - S.yawVel) * k;
-  S.yaw += S.yawVel * dt;
-
-  const sin = Math.sin(S.yaw), cos = Math.cos(S.yaw);
-  const tvx = -sin * fwd + cos * strafe;
-  const tvz = -cos * fwd - sin * strafe;
-  S.vel.x += (tvx - S.vel.x) * k;
-  S.vel.z += (tvz - S.vel.z) * k;
-  S.vy += (targetVy - S.vy) * k;
-
-  droneBody.velocity.set(S.vel.x, S.vy, S.vel.z);
-  world.step(1/60, dt, 3);
-
-  // 境界・高度制限
-  const p = droneBody.position;
-  p.x = Math.max(-AREA_X, Math.min(AREA_X, p.x));
-  p.z = Math.max(-AREA_Z, Math.min(AREA_Z, p.z));
-  if (p.y < 0.6){ p.y = 0.6; if (S.vy < 0) S.vy = 0; }
-  if (p.y > CEIL_H){ p.y = CEIL_H; if (S.vy > 0) S.vy = 0; }
-
-  // ---- ドローン見た目 ----
-  drone.position.copy(p);
-  const speedH = Math.hypot(S.vel.x, S.vel.z);
-  const localFwd = (S.vel.x * -sin + S.vel.z * -cos);
-  const localSide = (S.vel.x * cos + S.vel.z * -sin);
-  drone.rotation.set(localFwd * 0.06, S.yaw, -localSide * 0.06, 'YXZ');
-  const rpm = 18 + speedH * 3 + Math.abs(S.vy) * 3;
-  drone.userData.rotors.forEach((r, i) => { r.rotation.y += rpm * dt * (i%2 ? 1 : -1); });
-  shadowMark.position.set(p.x, 0.06, p.z);
-  shadowMark.scale.setScalar(Math.max(0.4, 1 - p.y/22));
-
-  // プロペラ音（控えめ）
-  if (AC && propGain){
-    const th = Math.min(1, (speedH/VH_MAX + Math.abs(S.vy)/VZ_MAX) * 0.6 + 0.25);
-    propGain.gain.value = (racing || S.phase === 'countdown') ? 0.04 * th : 0;
-    propOsc.frequency.value = 80 + th * 70;
-    propFilter.frequency.value = 350 + th * 500;
+  for(const a of windArrows){
+    a.lat += a.zone.push*dt*1.6;
+    if(a.zone.push > 0 && a.lat > LAT_MAX) a.lat = -LAT_MAX;
+    if(a.zone.push < 0 && a.lat < -LAT_MAX) a.lat = LAT_MAX;
+    samplePos(a.u, _b);
+    a.sp.position.set(_b.x+_b.lx*a.lat, baseAt(a.u, a.lat)+a.alt, _b.z+_b.lz*a.lat);
   }
-
-  // ---- ウェイポイント ----
-  if (racing) checkWaypoint(dt);
-  // 前フレーム位置を記録（線分ベース判定用）。レース中のみ有効化。
-  if (racing){
-    S.prevPos.set(p.x, p.y, p.z);
-    S.hasPrev = true;
-  }
-
-  // ウェイポイントのアニメーション
-  waypoints.forEach((w, i) => {
-    if (w.type === 'item'){
-      w.mesh.rotation.y += dt * 2;
-      w.mesh.position.y = w.pos.y + Math.sin(elapsed*2.4 + i) * 0.25;
-    } else if (i === S.seqIdx){
-      const ring = w.mesh.userData.ring;
-      if (ring) ring.material.emissiveIntensity = 1.1 + Math.sin(elapsed*6) * 0.6;
-    }
-  });
-  if (window.__towerTop) window.__towerTop.material.emissiveIntensity = 0.9 + Math.sin(elapsed*3)*0.4;
-  beacons.forEach((b,i)=>{ b.material.emissiveIntensity = 1.2 + Math.sin(elapsed*2 + i*1.6)*0.5; });
-
-  // 次のターゲットへ誘導ビームを移動
-  const nextW = waypoints[S.seqIdx];
-  if (nextW && (racing || S.phase === 'countdown')){
-    guideBeam.visible = true;
-    guideBeam.position.set(nextW.pos.x, 0, nextW.pos.z);
-    const col = nextW.type === 'gate' ? 0x38d9ff : (nextW.bonus ? 0xff6bd6 : 0xffe45c);
-    guideBeam.userData.beam.material.color.setHex(col);
-    guideBeam.userData.ring.material.color.setHex(col);
-    const pulse = 0.5 + Math.sin(elapsed*5) * 0.5;
-    guideBeam.userData.beam.material.opacity = 0.18 + pulse * 0.18;
-    guideBeam.userData.ring.material.opacity = 0.4 + pulse * 0.4;
-    guideBeam.userData.ring.scale.setScalar(1 + pulse * 0.12);
-  } else {
-    guideBeam.visible = false;
-  }
-
-  updateParticles(dt);
-
-  // ---- カメラ（スピード感演出）----
-  const camDist = 6.5 + speedH * 0.35;
-  const camH = 2.6 + speedH * 0.12;
-  const cx = p.x + Math.sin(S.yaw) * camDist;
-  const cz = p.z + Math.cos(S.yaw) * camDist;
-  const cl = 1 - Math.pow(0.0015, dt);
-  camera.position.x += (cx - camera.position.x) * cl;
-  camera.position.y += (p.y + camH - camera.position.y) * cl;
-  camera.position.z += (cz - camera.position.z) * cl;
-  camera.lookAt(p.x, p.y + 0.6, p.z);
-  const targetFov = 66 + (speedH / VH_MAX) * 14 * S.speedMult;
-  camera.fov += (targetFov - camera.fov) * Math.min(1, 3*dt);
-  camera.updateProjectionMatrix();
-
-  // ---- HUD ----
-  if (racing){
-    S.raceTime += dt;
-    el.time.textContent = fmtTime(S.raceTime);
-  }
-  drawMinimap();
-
+  updateCamera(dt);
+  updateHUD();
+  drawMM();
   renderer.render(scene, camera);
 }
-updateWaypointVisual();
-window.__S = S; // テスト検証用
-window.__T = { droneBody, waypoints }; // テスト検証用
-tick();
+loop();
 </script>
 </body>
 </html>
