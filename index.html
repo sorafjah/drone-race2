@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>ぴよドローン スカイアタック(リアルそうじゅう版)</title>
+<title>ドローンレース２</title>
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
@@ -58,14 +58,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#8fd3ff;font-family:
 <div class="chip" id="spd">0 km/h</div>
 
 <!-- 実機ドローンと同じ操作: 左スティック=たかさ+むき、右スティック=前後左右 -->
-<div class="stickZone" id="stickL"><div class="stickLabel">たかさ・むき</div><div class="stickKnob" id="knobL"></div></div>
+<div class="stickZone" id="stickL"><div class="stickLabel">たかさ、むき</div><div class="stickKnob" id="knobL"></div></div>
 <div class="stickZone" id="stickR"><div class="stickLabel">前後・左右</div><div class="stickKnob" id="knobR"></div></div>
 
 <div id="cd"></div>
 <div id="popup"></div>
 <div class="ov" id="titleOv">
   <div class="panel">
-    <h1>🚁 ぴよドローン スカイアタック</h1>
+    <h1>🚁 ドローンレース２</h1>
     <p>本物のドローンとおなじ、そうじゅうかんかくで空をとぼう！</p>
     <p><b>左スティック</b>：上下でたかさ、左右で機体のむきをかえる(せんかい)<br>
     <b>右スティック</b>：おくにたおすと前へ、左右にたおすと横へすすむ</p>
@@ -352,7 +352,7 @@ const SPEED_PRESETS = {
   normal: {label:'ふつう',   mult:0.78},
   fast:   {label:'こうそく', mult:1.0},
 };
-let speedKey = 'fast';
+let speedKey = 'normal';
 const H_SPEED_MAX = 15.0;   // 前後左右の最大速度 m/s(「こうそく」時)
 const V_SPEED_MAX = 6.2;    // 上下(スロットル)の最大速度 m/s
 const YAW_SPEED = 0.85;     // せんかい速度 rad/s(マイルドに調整済み・プリセットに関わらず一定)
@@ -396,14 +396,14 @@ const WIND_DEFS = [
   {a:0.24, b:0.30, push: 3.4},
   {a:0.66, b:0.72, push:-3.4},
 ];
-const RING_PICK_R = 2.3, STAR_PICK_R = 2.0;
-const HIT_WINDOW_U = 5 / trackLen; // かべの当たり判定はコース沿い約5mの範囲
+const RING_PICK_R = 4.4, STAR_PICK_R = 4.0; // リング・スターは見た目を2倍にしたので判定半径もあわせて拡大
+const BAR_WINDOW = 3.0; // かべの当たり判定: かべ本体からコース進行方向に±3mの範囲のみ
 
 // ===== オブジェクト生成 =====
 const rings = RING_DEFS.map(d=>{
   const y = baseAt(d.u, d.lat) + d.alt;
   samplePos(d.u, _b);
-  const mesh = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.2, 10, 28),
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(4.0, 0.4, 10, 28),
     new THREE.MeshLambertMaterial({color: d.final?0xffb63b:0x3be0c8, emissive: d.final?0xa06010:0x0a7a6a}));
   mesh.position.set(_b.x+_b.lx*d.lat, y, _b.z+_b.lz*d.lat);
   mesh.rotation.y = yawAt(d.u);
@@ -413,7 +413,7 @@ const rings = RING_DEFS.map(d=>{
 const bars = BAR_DEFS.map(d=>{
   samplePos(d.u, _b);
   const yaw = yawAt(d.u);
-  const cx0 = _b.x, cz0 = _b.z, lx = _b.lx, lz = _b.lz;
+  const cx0 = _b.x, cz0 = _b.z, lx = _b.lx, lz = _b.lz, tx = _b.tx, tz = _b.tz;
   const base = baseAt(d.u, 0);
   const grp = new THREE.Group();
   const mat = new THREE.MeshLambertMaterial({color:0xe86a5a});
@@ -438,12 +438,12 @@ const bars = BAR_DEFS.map(d=>{
     grp.add(p);
   }
   scene.add(grp);
-  return {...d, grp};
+  return {...d, grp, cx:cx0, cz:cz0, lx, lz, tx, tz, base};
 });
 const stars = STAR_DEFS.map(([u,lat,alt])=>{
   const y = baseAt(u, lat) + alt;
   samplePos(u, _b);
-  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.5),
+  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.0),
     new THREE.MeshLambertMaterial({color:0xffd94a, emissive:0x9a7a10}));
   mesh.position.set(_b.x+_b.lx*lat, y, _b.z+_b.lz*lat);
   scene.add(mesh);
@@ -617,6 +617,68 @@ function popup(txt){
   popTimer = setTimeout(()=>popupEl.classList.remove('show'), 1300);
 }
 
+// ===== サウンド(Web Audio APIで全て合成・音声ファイル不使用) =====
+let AC = null, masterGain = null;
+let propOsc = null, propFilter = null, propGain = null;
+function initAudio(){
+  if(AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = AC.createGain();
+  masterGain.gain.value = 0.5;
+  masterGain.connect(AC.destination);
+}
+function resumeAudio(){
+  if(AC && AC.state === 'suspended') AC.resume();
+}
+function beep(freq, dur=0.12, type='square', gain=0.14, when=0){
+  if(!AC) return;
+  const t = AC.currentTime + when;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(masterGain);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function startProp(){
+  if(!AC || propOsc) return;
+  propOsc = AC.createOscillator();
+  propOsc.type = 'sawtooth';
+  propOsc.frequency.value = 90;
+  propFilter = AC.createBiquadFilter();
+  propFilter.type = 'lowpass';
+  propFilter.frequency.value = 420;
+  propGain = AC.createGain();
+  propGain.gain.value = 0.0001;
+  propOsc.connect(propFilter).connect(propGain).connect(masterGain);
+  propOsc.start();
+}
+function updateProp(speed01){
+  if(!propOsc) return;
+  const t = AC.currentTime;
+  propOsc.frequency.setTargetAtTime(75 + speed01*150, t, 0.09);
+  propFilter.frequency.setTargetAtTime(380 + speed01*820, t, 0.09);
+  propGain.gain.setTargetAtTime(0.045 + speed01*0.075, t, 0.09);
+}
+function stopProp(){
+  if(propGain) propGain.gain.setTargetAtTime(0.0001, AC.currentTime, 0.15);
+  if(propOsc){
+    const o = propOsc;
+    setTimeout(()=>{ try{ o.stop(); }catch(e){} }, 300);
+    propOsc = null;
+  }
+}
+const SND = {
+  count:  ()=>beep(440, 0.11, 'square', 0.14),
+  go:     ()=>beep(880, 0.32, 'square', 0.18),
+  ring:   ()=>{ beep(660, 0.09, 'sine', 0.16); beep(990, 0.13, 'sine', 0.16, 0.08); },
+  star:   ()=>{ beep(1046, 0.08, 'triangle', 0.15); beep(1318, 0.13, 'triangle', 0.15, 0.07); },
+  hit:    ()=>{ beep(150, 0.18, 'square', 0.16); beep(100, 0.2, 'square', 0.14, 0.08); },
+  wind:   ()=>beep(320, 0.16, 'sine', 0.07),
+  lap:    ()=>{ beep(700, 0.12, 'triangle', 0.16); beep(900, 0.16, 'triangle', 0.16, 0.1); },
+  finish: ()=>{ const notes=[523,659,784,1046,1318]; notes.forEach((f,i)=>beep(f,0.22,'triangle',0.18,i*0.15)); },
+};
+
 // ===== 飛行制御(実機ドローン方式) =====
 function updateFlight(dt, racing){
   const lStickX = kb.left||kb.right ? ((kb.left?1:0)-(kb.right?1:0)) : stickL.x;
@@ -682,7 +744,7 @@ function updatePlayer(dt, t){
       }
     }
   }
-  if(inWind && !player.inWind) popup('💨 かぜに ながされる！');
+  if(inWind && !player.inWind){ popup('💨 かぜに ながされる！'); SND.wind(); }
   player.inWind = inWind;
 
   if(player.boostT > 0){ player.boostT -= dt; if(player.boostT <= 0) player.boostMult = 1; }
@@ -697,6 +759,7 @@ function updatePlayer(dt, t){
       if(dx*dx+dy*dy+dz*dz < RING_PICK_R*RING_PICK_R){
         r.takenLap = player.lap;
         player.ringCount++;
+        SND.ring();
         player.boostT = RING_BOOST_T; player.boostMult = RING_BOOST_MULT;
         if(r.final){
           player.finalStreak++;
@@ -707,20 +770,25 @@ function updatePlayer(dt, t){
         } else popup('✨ リングボーナス！');
       }
     }
-    // かべ(コース沿いの範囲内にいるかで判定)
+    // かべ(板本体からの実際の距離で判定。コース上の離れた場所と混同しないようにする)
     for(const b of bars){
       if(player.hitCool > 0) continue;
-      if(Math.abs(uDiff(player.u, b.u)) > HIT_WINDOW_U) continue;
+      const dx = player.x - b.cx, dz = player.z - b.cz;
+      const along = dx*b.tx + dz*b.tz; // コース進行方向のずれ(この板の手前/奥かどうか)
+      if(Math.abs(along) > BAR_WINDOW) continue;
+      const bLat = dx*b.lx + dz*b.lz;   // この板を基準にした横方向オフセット
+      const bAlt = player.y - b.base;   // この板を基準にした高さ
       let hit = false;
-      if(b.kind === 'high') hit = player.alt > 3.6;
-      else if(b.kind === 'low') hit = player.alt < 3.4;
-      else hit = player.lat * b.side > -0.6;
+      if(b.kind === 'high') hit = bAlt > 3.6 && bAlt < 9.6;
+      else if(b.kind === 'low') hit = bAlt < 3.4 && bAlt > -0.5;
+      else hit = bLat * b.side > -0.6 && Math.abs(bLat) < LAT_MAX+2.4;
       if(hit){
         player.vel.x *= HIT_SLOW; player.vel.y *= HIT_SLOW; player.vel.z *= HIT_SLOW;
         player.hitCool = HIT_COOL;
         player.wobble = 1;
         player.finalStreak = 0;
         popup('💥 ぶつかった！');
+        SND.hit();
       }
     }
     // スター
@@ -731,6 +799,7 @@ function updatePlayer(dt, t){
         s.taken = true;
         s.mesh.visible = false;
         player.starCount++;
+        SND.star();
         popup('⭐ スター '+player.starCount+'こ！');
       }
     }
@@ -741,7 +810,7 @@ function updatePlayer(dt, t){
       player.cp = false;
       player.finalStreak = 0;
       if(player.lap >= 3) finishPlayer();
-      else popup('ラップ '+(player.lap+1)+'/3！');
+      else { popup('ラップ '+(player.lap+1)+'/3！'); SND.lap(); }
     }
   }
 
@@ -772,6 +841,8 @@ function updatePlayer(dt, t){
 function finishPlayer(){
   player.finished = true;
   state = 'finished';
+  stopProp();
+  SND.finish();
   const best = loadBest();
   const isBest = best===null || raceTime < best;
   if(isBest) saveBest(raceTime);
@@ -875,16 +946,19 @@ document.querySelectorAll('.speedBtn').forEach(btn=>{
     showTitleBest();
   });
 });
-applySpeedPreset('fast');
+applySpeedPreset('normal');
 updateSpeedButtons();
 showTitleBest();
 document.getElementById('btnStart').addEventListener('click', ()=>{
+  initAudio();
+  resumeAudio();
   document.getElementById('titleOv').classList.add('hidden');
   setSticksVisible(true);
   resetRace();
   firstCam = true;
 });
 document.getElementById('btnAgain').addEventListener('click', ()=>{
+  resumeAudio();
   setSticksVisible(true);
   resetRace();
   firstCam = true;
@@ -902,16 +976,22 @@ function loop(){
     const n = Math.ceil(countT);
     if(n !== lastCount){
       lastCount = n;
-      if(n > 0) cdEl.textContent = n;
+      if(n > 0){ cdEl.textContent = n; SND.count(); }
       else {
         cdEl.textContent = 'GO!';
         state = 'race';
+        SND.go();
+        startProp();
         setTimeout(()=>{ cdEl.textContent = ''; }, 700);
       }
     }
   }
   if(state === 'race') raceTime += dt;
   updatePlayer(dt, t);
+  if(propOsc){
+    const spd = Math.hypot(player.vel.x, player.vel.y, player.vel.z);
+    updateProp(clamp(spd / H_SPEED_MAX, 0, 1));
+  }
   for(const r of rings){
     const active = r.takenLap !== player.lap;
     r.mesh.visible = true;
